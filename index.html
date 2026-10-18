@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Uligod MTG Deck Builder</title>
+<title>Üligod's MTG Deck Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
@@ -142,16 +142,17 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .lnk:hover { color: var(--accent); text-decoration-color: var(--accent); }
 .cm { position: fixed; inset: 0; z-index: 40; background: rgba(8, 10, 14, .74); display: grid; place-items: center;
   padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
-.cm-box { width: min(100%, 440px); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 12px; }
-.cm-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.cm-top h2 { font-size: 18px; line-height: 1.2; overflow-wrap: anywhere; padding-top: 8px; }
+/* Coluna (flex) em vez de grelha: os blocos nunca encolhem uns para cima dos outros; se faltar altura, a janela faz scroll. */
+.cm-box { width: min(100%, 440px); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.cm-box > * { flex: none; }
+.cm-top { display: flex; align-items: center; justify-content: flex-end; }
 .cm-x { flex: none; width: 40px; padding: 0; }
 .cm-img { width: min(100%, 340px); aspect-ratio: 488 / 680; margin: 0 auto; border-radius: 4.75% / 3.4%; background: var(--surface-2); overflow: hidden; display: grid; place-items: center; }
 .cm-img img { width: 100%; height: 100%; display: block; object-fit: contain; }
 @media (prefers-reduced-motion: no-preference) { .cm-img img.flipin { animation: flipin .28s ease-out; } @keyframes flipin { from { transform: rotateY(90deg); opacity: .3; } to { transform: rotateY(0); opacity: 1; } } }
 .cm-fb { padding: 20px; text-align: center; color: var(--fg-3); font-size: 14px; }
 .cm-sec { display: grid; gap: 6px; }
-.cm-text { white-space: pre-line; font-size: 14px; }
+.cm-info { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
 .cm-nav { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
 .cm-nav .back:last-child { justify-self: end; }
 .cost { display: inline-flex; gap: 2px; align-items: center; flex-wrap: wrap; }
@@ -285,6 +286,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 (function () {
 'use strict';
 
+var APP_NAME = "Üligod's MTG Deck Builder";
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -442,16 +444,43 @@ function faceUrls(c, back) {
   out.push(imgUrl(uri, 'large').replace('/front/', '/back/'), imgUrl(uri, 'normal').replace('/front/', '/back/'));
   return out;
 }
-// só as cartas de duas faces reais têm verso; aventuras não (a outra metade está no mesmo cartão)
-function maybeTwoFaced(c) {
+/* Decide se a carta tem VERSO com imagem própria. Esta é a única função que decide isso, para a app inteira.
+ * A base de dados guarda o type_line completo ("Frente // Verso"). Devolve:
+ *   'yes'   – duas faces reais (transformar, modal/MDFC, planeswalker, saga, batalha…): mostra o botão logo;
+ *   'no'    – uma só imagem com duas metades (aventura, presságio/omen, sala, split/fuse/aftermath): sem botão;
+ *   'probe' – caso duvidoso (criatura // feitiço simples, ex.: «prepare»): o botão só aparece se o verso existir mesmo. */
+function faceKind(c) {
   var t = (c && c.type_line) || '';
-  if (!/\s\/\/\s/.test(t)) return false;
-  return !/Adventure/.test(t.split(/\s\/\/\s/)[1] || '');
+  var p = t.split(/\s\/\/\s/);
+  if (p.length < 2) return 'no';
+  var strip = function (s) { return s.replace(/\b(Legendary|Snow|Basic|World|Tribal|Kindred)\s+/g, '').trim(); };
+  var a = strip(p[0]), b = strip(p[1]);
+  if (/Adventure|Omen/.test(b)) return 'no';
+  if (/Room/.test(a) && /Room/.test(b)) return 'no';
+  var plain = /^(Instant|Sorcery)$/;
+  if (plain.test(a) && plain.test(b)) return 'no';
+  if (/Creature/.test(a) && !/Land|Artifact|Enchantment/.test(a) && plain.test(b)) return 'probe';
+  return 'yes';
+}
+// tenta carregar o verso; devolve true se alguma das ligações der uma imagem
+function backExists(c, tok) {
+  var urls = faceUrls(c, true);
+  return new Promise(function (resolve) {
+    var k = 0;
+    (function next() {
+      if (tok !== CM.token || !CM.el || k >= urls.length) { resolve(false); return; }
+      var im = new Image();
+      im.onload = function () { resolve(true); };
+      im.onerror = next;
+      im.src = urls[k++];
+    })();
+  });
 }
 function cardView(item, c, loading) {
   var n = CM.list.length;
   var img = h('div', { class: 'cm-img' });
   var flipBtn = null, tok = CM.token;
+  function dropFlip() { if (flipBtn) { flipBtn.remove(); flipBtn = null; } }
   function setFace() {
     var urls = faceUrls(c, CM.back), k = 0;
     if (flipBtn) { flipBtn.textContent = CM.back ? 'Ver frente' : 'Virar carta'; flipBtn.setAttribute('aria-pressed', CM.back ? 'true' : 'false'); }
@@ -460,7 +489,7 @@ function cardView(item, c, loading) {
     function tryNext() {
       if (tok !== CM.token || !CM.el) return;
       if (k >= urls.length) {
-        if (CM.back) { CM.back = false; toast('Esta carta não tem verso (é uma carta de uma só face com duas metades).'); setFace(); }
+        if (CM.back) { CM.back = false; dropFlip(); toast('Esta carta não tem verso (as duas metades estão na mesma imagem).'); setFace(); }
         else img.replaceChildren(h('div', { class: 'cm-fb', text: 'Não foi possível carregar a imagem (sem ligação?).' }));
         return;
       }
@@ -477,24 +506,29 @@ function cardView(item, c, loading) {
     }
     tryNext();
   }
-  var dfc = maybeTwoFaced(c);
-  if (dfc) flipBtn = h('button', { class: 'back', type: 'button', text: 'Virar carta', 'aria-pressed': 'false', onclick: function () { CM.back = !CM.back; img.dataset.flip = '1'; setFace(); } });
+  var kind = c ? faceKind(c) : 'no';
+  if (kind !== 'no') {
+    flipBtn = h('button', { class: 'back', type: 'button', text: 'Virar carta', 'aria-pressed': 'false', hidden: kind === 'probe', onclick: function () { CM.back = !CM.back; img.dataset.flip = '1'; setFace(); } });
+    if (kind === 'probe') backExists(c, tok).then(function (ok) { if (tok !== CM.token || !CM.el) return; if (ok && flipBtn) flipBtn.hidden = false; else dropFlip(); });
+  }
   setFace();
   var leg = h('div', { class: 'cm-sec' });
   var own = h('div', { class: 'cm-sec' });
   var title = (c && c.name) || item.name || ('Carta ' + item.arena_id);
-  var box = h('div', { class: 'cm-box' },
-    h('div', { class: 'cm-top' }, h('h2', { text: title }),
-      h('button', { class: 'back cm-x', type: 'button', 'aria-label': 'Fechar', text: '✕', onclick: function () { closeCard(); } })),
-    img,
+  // Sem bloco de nome/descrição por cima da imagem: o nome e o texto já se lêem na própria carta.
+  // Por baixo da imagem: botão «Virar carta», custo de mana, raridade e coleção.
+  var hasInfo = flipBtn || (c && (c.mana_cost || c.rarity || c.set_code || c.is_digital));
+  var info = hasInfo ? h('div', { class: 'cm-info' },
     flipBtn,
-    c ? h('div', { class: 'cm-sec' },
-      h('div', { class: 'row', style: 'flex-wrap:wrap' }, manaCost(c.mana_cost),
-        c.rarity ? h('span', { class: 'chip' }, h('i', { class: 'dot ' + c.rarity }), RARITY[c.rarity] || c.rarity) : null,
-        c.set_code ? h('span', { class: 'chip num', text: c.set_code.toUpperCase() + (c.collector_number ? ' ' + c.collector_number : '') }) : null,
-        c.is_digital ? h('span', { class: 'chip acc', text: 'Digital' }) : null),
-      c.type_line ? h('div', null, h('b', { text: c.type_line })) : null,
-      c.oracle_text ? h('div', { class: 'cm-text', text: c.oracle_text }) : null) : null,
+    c ? [manaCost(c.mana_cost),
+      c.rarity ? h('span', { class: 'chip' }, h('i', { class: 'dot ' + c.rarity }), RARITY[c.rarity] || c.rarity) : null,
+      c.set_code ? h('span', { class: 'chip num', text: c.set_code.toUpperCase() + (c.collector_number ? ' ' + c.collector_number : '') }) : null,
+      c.is_digital ? h('span', { class: 'chip acc', text: 'Digital' }) : null] : null) : null;
+  var box = h('div', { class: 'cm-box', 'aria-label': title },
+    h('div', { class: 'cm-top' },
+      h('button', { class: 'back cm-x', type: 'button', 'aria-label': 'Fechar ' + title, text: '✕', onclick: function () { closeCard(); } })),
+    img,
+    info,
     leg, own,
     n > 1 ? h('div', { class: 'cm-nav' },
       h('button', { class: 'back', type: 'button', text: '‹ Anterior', disabled: CM.i === 0, onclick: function () { CM.i--; paintCard(); } }),
@@ -619,7 +653,7 @@ function renderAuth(msg) {
     err, submit, toggle);
   $app.replaceChildren(h('div', { class: 'wrap auth' },
     h('div', { class: 'stack' },
-      h('div', null, h('h1', { text: 'Uligod MTG Deck Builder', style: 'font-size:26px' }), h('p', { class: 'muted', text: 'Standard e Alchemy no MTG Arena. Os teus decks, a tua carteira e os avisos de banlist e rotação.' })),
+      h('div', null, h('h1', { text: APP_NAME, style: 'font-size:26px' }), h('p', { class: 'muted', text: 'Standard e Alchemy no MTG Arena. Os teus decks, a tua carteira e os avisos de banlist e rotação.' })),
       h('div', { class: 'card' }, title, form),
       msg ? h('div', { class: 'note', text: msg }) : null)));
 }
@@ -633,7 +667,7 @@ function shell(content) {
   var email = S.session && S.session.user && S.session.user.email;
   $app.replaceChildren(
     h('div', { class: 'top' }, h('div', { class: 'wrap top-in' },
-      h('div', { class: 'brand' }, 'Uligod MTG Deck Builder', h('small', { text: 'Arena · Standard + Alchemy' })),
+      h('div', { class: 'brand' }, APP_NAME, h('small', { text: 'Arena · Standard + Alchemy' })),
       h('div', { class: 'who' }, h('button', { type: 'button', title: email || '', text: 'Sair', onclick: function () { sb.auth.signOut(); } })))),
     h('main', { class: 'wrap' }, content),
     nav);

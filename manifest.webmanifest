@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Uligod MTG Deck Builder",
-  "short_name": "MTG Builder",
+  "name": "Üligod's MTG Deck Builder",
+  "short_name": "Üligod's MTG",
   "description": "Decks, carteira e avisos de banlist e rotação para o MTG Arena.",
   "lang": "pt-PT",
   "start_url": "./",

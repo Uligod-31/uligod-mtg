@@ -4,8 +4,9 @@
  * Estratégia «rede primeiro»: quando publicas uma versão nova do index.html, ela aparece logo.
  * v2: (1) a instalação não falha se faltar um ficheiro da casca (ex.: um ícone); (2) os pedidos da mesma
  * origem revalidam com o servidor em vez de usarem a cache HTTP do GitHub Pages (que dura cerca de 10 min).
- * v3: sem offline, o fallback ignora parâmetros do endereço; só guarda respostas completas (200). */
-var CACHE = 'uligod-mtg-shell-v3';
+ * v3: sem offline, o fallback ignora parâmetros do endereço; só guarda respostas completas (200).
+ * v4: novo nome da app (Üligod's MTG Deck Builder) e janela da carta revista; força a renovação da cache. */
+var CACHE = 'uligod-mtg-shell-v4';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
