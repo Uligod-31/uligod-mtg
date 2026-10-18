@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#14181f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="MTG Builder">
+<meta name="apple-mobile-web-app-title" content="Üligod's MTG">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -134,7 +134,29 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .pill-mana { display: inline-flex; gap: 2px; }
 .pill-mana i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,.25); }
 .mW { background: #f4efd6; } .mU { background: #5aa0d8; } .mB { background: #4a4348; } .mR { background: #d9573e; } .mG { background: #4aa564; }
-@media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translateY(14px); opacity: .6; } } }
+/* miniaturas, ligações nos nomes e janela da carta */
+.cl.has-th { grid-template-columns: 28px 36px 1fr auto; }
+.th { width: 36px; height: 50px; border-radius: 3px; background: var(--surface-2); object-fit: cover; display: block; }
+.th.empty { border: 1px dashed var(--line); background: transparent; }
+.lnk { background: none; border: 0; padding: 0; margin: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.lnk:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.cm { position: fixed; inset: 0; z-index: 40; background: rgba(8, 10, 14, .74); display: grid; place-items: center;
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+.cm-box { width: min(100%, 440px); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 12px; }
+.cm-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.cm-top h2 { font-size: 18px; line-height: 1.2; overflow-wrap: anywhere; padding-top: 8px; }
+.cm-x { flex: none; width: 40px; padding: 0; }
+.cm-img { width: min(100%, 340px); aspect-ratio: 488 / 680; margin: 0 auto; border-radius: 4.75% / 3.4%; background: var(--surface-2); overflow: hidden; display: grid; place-items: center; }
+.cm-img img { width: 100%; height: 100%; display: block; }
+.cm-fb { padding: 20px; text-align: center; color: var(--fg-3); font-size: 14px; }
+.cm-sec { display: grid; gap: 6px; }
+.cm-text { white-space: pre-line; font-size: 14px; }
+.cm-nav { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.cm-nav .back:last-child { justify-self: end; }
+.cost { display: inline-flex; gap: 2px; align-items: center; flex-wrap: wrap; }
+.sym { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 3px; border-radius: 10px; font: 600 11px/1 var(--mono); background: #cfd3d8; color: #151a21; border: 1px solid rgba(0, 0, 0, .25); }
+.sym.W { background: #f4efd6; } .sym.U { background: #5aa0d8; } .sym.B { background: #4a4348; color: #fff; } .sym.R { background: #d9573e; } .sym.G { background: #4aa564; }
+@media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translateY(14px); opacity: .6; } } .cm-box { animation: pop .14s ease-out; } @keyframes pop { from { transform: scale(.97); opacity: .6; } } }
 </style>
 </head>
 <body>
@@ -267,7 +289,7 @@ var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 var $app = document.getElementById('app');
-var S = { session: null, tab: 'home', decks: null, wallet: null, events: null, collCount: null, fmt: 'all', q: '', banFmt: 'standard', bans: {}, busy: false };
+var S = { session: null, tab: 'home', decks: null, wallet: null, events: null, collCount: null, fmt: 'all', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {} };
 
 /* ---------- utilitários ---------- */
 function h(tag, attrs) {
@@ -320,6 +342,175 @@ function icon(name) {
 function manaPills(colors) {
   if (!colors || !colors.length) return null;
   return h('span', { class: 'pill-mana', 'aria-label': colors.join('') }, colors.map(function (c) { return h('i', { class: 'm' + c }); }));
+}
+
+/* ---------- imagens e janela da carta ---------- */
+// As imagens vêm de cards.scryfall.io (ligação direta no browser). Tamanhos: small, normal, large.
+function imgUrl(uri, size) { return uri ? uri.replace('/normal/', '/' + size + '/') : null; }
+function emptyThumb() { return h('span', { class: 'th empty', 'aria-hidden': 'true' }); }
+function thumb(c) {
+  if (!c || !c.image_uri) return emptyThumb();
+  return h('img', { class: 'th', src: imgUrl(c.image_uri, 'small'), alt: '', loading: 'lazy', decoding: 'async', width: 36, height: 50,
+    onerror: function (e) { e.target.replaceWith(emptyThumb()); } });
+}
+function manaCost(mc) {
+  var toks = mc ? mc.match(/\{[^}]+\}|\/\//g) : null;
+  if (!toks) return null;
+  return h('span', { class: 'cost', 'aria-label': 'Custo de mana: ' + mc.replace(/[{}]/g, ' ') }, toks.map(function (s) {
+    if (s === '//') return h('span', { class: 'muted small', text: '//' });
+    var t = s.slice(1, -1);
+    return h('span', { class: 'sym ' + (/^[WUBRG]$/.test(t) ? t : ''), 'aria-hidden': 'true', text: t.replace(/\//g, '') });
+  }));
+}
+// nome de carta clicável (abre a janela com a imagem); item pode ser uma linha de deck ou {name}
+function cardLink(item, label, list, idx) {
+  return h('button', { class: 'lnk', type: 'button', text: label || item.name, onclick: function (e) {
+    e.stopPropagation();
+    var l = list ? list() : [item];
+    var i = list ? l.indexOf(item) : 0;
+    openCard(l, i < 0 ? 0 : i);
+  } });
+}
+function nameLinks(names) {
+  var out = [];
+  (names || []).forEach(function (n, i) { if (i) out.push(', '); out.push(cardLink({ name: n })); });
+  return out;
+}
+
+var LEG_SHOW = [['standard', 'Standard'], ['alchemy', 'Alchemy'], ['pioneer', 'Pioneer'], ['historic', 'Historic'], ['timeless', 'Timeless'], ['brawl', 'Brawl']];
+var LEG_TXT = { legal: 'legal', not_legal: 'fora', banned: 'banida', restricted: 'restrita' };
+var CARD_COLS = 'arena_id,oracle_id,name,set_code,collector_number,rarity,mana_cost,type_line,oracle_text,image_uri,is_digital,legalities';
+var CM = { el: null, list: [], i: 0, back: false, token: 0, prevFocus: null, prevOverflow: '' };
+
+async function fetchCard(item) {
+  var key = item.arena_id != null ? 'a' + item.arena_id : 'n' + item.name;
+  if (S.cardCache[key]) return S.cardCache[key];
+  var row = null;
+  if (item.arena_id != null) {
+    row = (await q(sb.from('cards').select(CARD_COLS).eq('arena_id', item.arena_id).maybeSingle())).data;
+  } else if (item.name) {
+    var r = await q(sb.from('cards').select(CARD_COLS).eq('name', item.name).order('arena_id', { ascending: false, nullsFirst: false }).limit(1));
+    row = r.data && r.data[0];
+    if (!row) {
+      var r2 = await q(sb.from('cards').select(CARD_COLS).ilike('name', item.name.replace(/[%_\\]/g, '') + ' // %').limit(1));
+      row = r2.data && r2.data[0];
+    }
+    if (!row) {   // nomes sem vírgulas/apóstrofos (ex.: listas de banlist): procura por palavras
+      var words = item.name.replace(/[%_\\]/g, '').trim().split(/[\s,'’\-]+/).filter(Boolean);
+      if (words.length) {
+        var r3 = await q(sb.from('cards').select(CARD_COLS).ilike('name', words.join('%')).order('arena_id', { ascending: false, nullsFirst: false }).limit(1));
+        row = r3.data && r3.data[0];
+      }
+    }
+  }
+  if (row) S.cardCache[key] = row;
+  return row;
+}
+function openCard(list, i) {
+  closeCard(true);
+  CM.list = list; CM.i = i; CM.prevFocus = document.activeElement; CM.prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  var el = h('div', { class: 'cm', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Detalhe da carta', onclick: function (e) { if (e.target === el) closeCard(); } });
+  CM.el = el; document.body.appendChild(el);
+  document.addEventListener('keydown', cmKey);
+  paintCard();
+}
+function closeCard(silent) {
+  if (!CM.el) return;
+  CM.token++; CM.el.remove(); CM.el = null;
+  document.body.style.overflow = CM.prevOverflow;
+  document.removeEventListener('keydown', cmKey);
+  if (!silent && CM.prevFocus && document.contains(CM.prevFocus)) CM.prevFocus.focus();
+}
+function cmKey(e) {
+  if (e.key === 'Escape') closeCard();
+  else if (e.key === 'ArrowLeft' && CM.i > 0) { CM.i--; paintCard(); }
+  else if (e.key === 'ArrowRight' && CM.i < CM.list.length - 1) { CM.i++; paintCard(); }
+}
+function cardView(item, c, loading) {
+  var n = CM.list.length;
+  var img = h('div', { class: 'cm-img' });
+  function setFace() {
+    var url = c && c.image_uri ? imgUrl(c.image_uri, 'large') : null;
+    if (url && CM.back) url = url.replace('/front/', '/back/');
+    if (!url) { img.replaceChildren(h('div', { class: 'cm-fb', text: loading ? 'A carregar…' : 'Sem imagem para esta carta.' })); return; }
+    var retried = false;
+    var im = h('img', { src: url, alt: (c.name || '') + (CM.back ? ' (verso)' : ''), decoding: 'async', onerror: function () {
+      if (CM.back) { CM.back = false; toast('Esta carta não tem verso.'); setFace(); return; }
+      if (!retried) { retried = true; im.src = imgUrl(c.image_uri, 'normal'); return; }
+      img.replaceChildren(h('div', { class: 'cm-fb', text: 'Não foi possível carregar a imagem (sem ligação?).' }));
+    } });
+    img.replaceChildren(im);
+  }
+  setFace();
+  var dfc = c && /\s\/\/\s/.test(c.type_line || '');
+  var leg = h('div', { class: 'cm-sec' });
+  var own = h('div', { class: 'cm-sec' });
+  var title = (c && c.name) || item.name || ('Carta ' + item.arena_id);
+  var box = h('div', { class: 'cm-box' },
+    h('div', { class: 'cm-top' }, h('h2', { text: title }),
+      h('button', { class: 'back cm-x', type: 'button', 'aria-label': 'Fechar', text: '✕', onclick: function () { closeCard(); } })),
+    img,
+    dfc ? h('button', { class: 'back', type: 'button', text: 'Virar carta', onclick: function () { CM.back = !CM.back; setFace(); } }) : null,
+    c ? h('div', { class: 'cm-sec' },
+      h('div', { class: 'row', style: 'flex-wrap:wrap' }, manaCost(c.mana_cost),
+        c.rarity ? h('span', { class: 'chip' }, h('i', { class: 'dot ' + c.rarity }), RARITY[c.rarity] || c.rarity) : null,
+        c.set_code ? h('span', { class: 'chip num', text: c.set_code.toUpperCase() + (c.collector_number ? ' ' + c.collector_number : '') }) : null,
+        c.is_digital ? h('span', { class: 'chip acc', text: 'Digital' }) : null),
+      c.type_line ? h('div', null, h('b', { text: c.type_line })) : null,
+      c.oracle_text ? h('div', { class: 'cm-text', text: c.oracle_text }) : null) : null,
+    leg, own,
+    n > 1 ? h('div', { class: 'cm-nav' },
+      h('button', { class: 'back', type: 'button', text: '‹ Anterior', disabled: CM.i === 0, onclick: function () { CM.i--; paintCard(); } }),
+      h('span', { class: 'muted small num', text: (CM.i + 1) + ' / ' + n }),
+      h('button', { class: 'back', type: 'button', text: 'Seguinte ›', disabled: CM.i === n - 1, onclick: function () { CM.i++; paintCard(); } })) : null);
+  return { box: box, leg: leg, own: own };
+}
+function fillCardExtras(v, item, full) {
+  var L = (full && full.legalities) || {};
+  var chips = LEG_SHOW.map(function (k) {
+    var val = L[k[0]]; if (!val) return null;
+    return h('span', { class: 'chip ' + (val === 'legal' ? 'ok' : val === 'restricted' ? 'warn' : 'bad'), text: k[1] + ': ' + (LEG_TXT[val] || val) });
+  });
+  if (full) v.leg.replaceChildren(h('h3', { text: 'Legalidade' }), h('div', { class: 'row', style: 'flex-wrap:wrap' }, chips),
+    h('div', { class: 'muted small', text: 'Dados do Scryfall; a banlist da app (separador Alertas) pode ser mais recente. Confirma no Arena.' }));
+  if (item.quantity != null) {
+    var zl = { main: 'main', side: 'sideboard', command: 'comandante', companion: 'companheiro' }[item.zone] || item.zone;
+    var st = item.status;
+    v.own.replaceChildren(h('h3', { text: 'Neste deck' }), h('div', { class: 'row', style: 'flex-wrap:wrap' },
+      h('span', { class: 'chip num', text: item.quantity + '× no ' + zl }),
+      item.legality === 'banned' ? h('span', { class: 'chip bad', text: 'Banida neste formato' }) : item.legality === 'not_legal' ? h('span', { class: 'chip bad', text: 'Fora do formato' }) : null,
+      st ? h('span', { class: 'chip ' + (st.missing > 0 ? 'warn' : 'ok'), text: 'Tens ' + st.owned + ' de ' + st.needed + (st.missing > 0 ? ' · faltam ' + st.missing : '') }) : null));
+  }
+}
+async function paintCard() {
+  if (!CM.el) return;
+  var tok = ++CM.token, item = CM.list[CM.i];
+  CM.back = false;
+  var have = (item.image_uri || item.type_line) ? item : null;
+  var v = cardView(item, have, !have);
+  CM.el.replaceChildren(v.box);
+  var x = v.box.querySelector('.cm-x'); if (x) x.focus({ preventScroll: true });
+  if (have) fillCardExtras(v, item, null);
+  try {
+    var full = await fetchCard(item);
+    if (tok !== CM.token || !CM.el) return;
+    // estado da coleção (só quando há coleção e a carta pertence a um deck)
+    if (item.deck_id && item.oracle_id && S.collCount > 0 && item.status === undefined) {
+      var st = await q(sb.from('deck_card_status').select('needed,owned,missing').eq('deck_id', item.deck_id).eq('oracle_id', item.oracle_id).maybeSingle());
+      item.status = st.data || null;
+      if (tok !== CM.token || !CM.el) return;
+    }
+    if (have) { fillCardExtras(v, item, full); return; }
+    var c = full || { name: item.name };
+    var v2 = cardView(item, full ? Object.assign({}, c) : null, false);
+    CM.el.replaceChildren(v2.box);
+    var x2 = v2.box.querySelector('.cm-x'); if (x2) x2.focus({ preventScroll: true });
+    fillCardExtras(v2, item, full);
+    if (!full) v2.box.querySelector('.cm-img').replaceChildren(h('div', { class: 'cm-fb', text: 'Carta não encontrada no catálogo.' }));
+  } catch (e) {
+    if (tok === CM.token && CM.el) toast('Não foi possível carregar a carta: ' + e.message);
+  }
 }
 
 /* ---------- dados ---------- */
@@ -551,9 +742,9 @@ function deckDetail(d, lines, craft) {
       d.side_count ? h('span', { class: 'chip num', text: d.side_count + ' sideboard' }) : null,
       d.is_bo1 ? h('span', { class: 'chip', text: 'Bo1' }) : h('span', { class: 'chip', text: 'Bo3' })),
     probs.length ? h('div', { class: 'stack', style: 'padding-top:10px' }, probs.map(function (p) { return h('div', { class: 'note ' + p.k, text: p.t }); })) : h('div', { class: 'note', text: 'Todas as cartas são legais em ' + d.format_name + ' e o tamanho está dentro das regras.' }),
-    d.banned_cards && d.banned_cards.length ? h('p', { class: 'small' }, h('b', { text: 'Banidas: ' }), d.banned_cards.join(', ')) : null,
-    d.not_legal_cards && d.not_legal_cards.length ? h('p', { class: 'small' }, h('b', { text: 'Fora do formato: ' }), d.not_legal_cards.join(', ')) : null,
-    d.over_limit_cards && d.over_limit_cards.length ? h('p', { class: 'small' }, h('b', { text: 'Acima do limite de cópias: ' }), d.over_limit_cards.join(', ')) : null));
+    d.banned_cards && d.banned_cards.length ? h('p', { class: 'small' }, h('b', { text: 'Banidas: ' }), nameLinks(d.banned_cards)) : null,
+    d.not_legal_cards && d.not_legal_cards.length ? h('p', { class: 'small' }, h('b', { text: 'Fora do formato: ' }), nameLinks(d.not_legal_cards)) : null,
+    d.over_limit_cards && d.over_limit_cards.length ? h('p', { class: 'small' }, h('b', { text: 'Acima do limite de cópias: ' }), nameLinks(d.over_limit_cards)) : null));
 
   // curva de mana (sem terrenos)
   var main = lines.filter(function (l) { return l.zone === 'main'; });
@@ -589,14 +780,17 @@ function deckDetail(d, lines, craft) {
     var groups = {}; zl.forEach(function (l) { var g = z[0] === 'main' ? typeGroup(l.type_line) : z[1]; (groups[g] = groups[g] || []).push(l); });
     var order = ['Criaturas', 'Planeswalkers', 'Feitiços', 'Artefactos e encantamentos', 'Outras', 'Terrenos', z[1]];
     var card = h('div', { class: 'card' }, h('h3', { text: z[1] + ' · ' + zl.reduce(function (a, l) { return a + l.quantity; }, 0) }));
+    var seq = [];   // ordem em que as cartas aparecem nesta zona (para anterior/seguinte na janela da carta)
     order.forEach(function (g) {
       if (!groups[g]) return;
       var gl = groups[g].slice().sort(function (a, b) { return (Number(a.cmc) || 0) - (Number(b.cmc) || 0) || String(a.name).localeCompare(String(b.name)); });
       if (z[0] === 'main') card.appendChild(h('div', { class: 'muted small', style: 'margin:10px 0 2px;font-weight:600', text: g + ' · ' + gl.reduce(function (a, l) { return a + l.quantity; }, 0) }));
       gl.forEach(function (l) {
-        card.appendChild(h('div', { class: 'cl' },
+        seq.push(l);
+        card.appendChild(h('div', { class: 'cl has-th' },
           h('span', { class: 'q', text: l.quantity + '×' }),
-          h('span', { class: 'n' }, h('i', { class: 'dot ' + (l.rarity || '') }), ' ', l.name || ('Carta ' + l.arena_id + ' (por identificar)'), ' ', manaPills(l.colors),
+          thumb(l),
+          h('span', { class: 'n' }, h('i', { class: 'dot ' + (l.rarity || '') }), ' ', cardLink(l, l.name || ('Carta ' + l.arena_id + ' (por identificar)'), function () { return seq; }), ' ', manaPills(l.colors),
             l.set_code ? h('span', { class: 'muted small num', text: ' ' + l.set_code.toUpperCase() }) : null),
           l.legality === 'banned' ? h('span', { class: 'chip bad', text: 'Banida' }) : l.legality === 'not_legal' ? h('span', { class: 'chip bad', text: 'Fora' }) : l.legality === 'unknown' ? h('span', { class: 'chip warn', text: '?' }) : null));
       });
@@ -616,7 +810,7 @@ function viewAlerts() {
   out.appendChild(h('section', { class: 'card' }, h('h3', { text: 'Os teus decks afetados' }),
     affected.length ? affected.map(function (d) {
       return h('div', { class: 'cl', style: 'grid-template-columns:1fr auto' },
-        h('span', null, h('b', { text: d.name }), h('div', { class: 'muted small', text: (d.banned_cards || []).concat(d.not_legal_cards || []).join(', ') })),
+        h('span', null, h('b', { text: d.name }), h('div', { class: 'muted small' }, nameLinks((d.banned_cards || []).concat(d.not_legal_cards || [])))),
         h('button', { class: 'back', type: 'button', text: 'Ver', onclick: function () { openDeck(d); } }));
     }) : h('p', { class: 'muted', text: 'Nenhum dos teus decks tem cartas banidas ou fora do formato.' })));
 
@@ -635,7 +829,7 @@ function viewAlerts() {
         h('p', { class: 'muted small', text: list.length + ' cartas na lista · confirma sempre no cliente do Arena.' }),
         list.map(function (b) {
           return h('div', { class: 'cl', style: 'grid-template-columns:1fr auto' },
-            h('span', null, b.card_name, mine[b.card_name] ? h('div', { class: 'small', style: 'color:var(--bad)', text: 'Nos teus decks: ' + mine[b.card_name].join(', ') }) : null),
+            h('span', null, cardLink({ name: b.card_name }), mine[b.card_name] ? h('div', { class: 'small', style: 'color:var(--bad)', text: 'Nos teus decks: ' + mine[b.card_name].join(', ') }) : null),
             h('span', { class: 'chip ' + (b.status === 'banned' ? 'bad' : 'warn'), text: b.status === 'banned' ? 'Banida' : b.status === 'restricted' ? 'Restrita' : 'Banida como comandante' }));
         })));
     } catch (e) { box.replaceChildren(h('div', { class: 'note bad', text: e.message })); }
@@ -776,7 +970,7 @@ async function boot() {
   S.session = r.data.session;
   sb.auth.onAuthStateChange(function (_e, session) {
     var was = S.session; S.session = session;
-    if (!session) { S.decks = null; render(); return; }
+    if (!session) { closeCard(true); S.decks = null; S.cardCache = {}; render(); return; }
     if (!was || was.user.id !== session.user.id) startLoad();
   });
   if (S.session) startLoad(); else render();
