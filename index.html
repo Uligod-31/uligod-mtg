@@ -146,7 +146,9 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .cm-box { width: min(100%, 440px); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 .cm-box > * { flex: none; }
 .cm-top { display: flex; align-items: center; justify-content: flex-end; }
-.cm-x { flex: none; width: 40px; padding: 0; }
+/* X pequeno (metade do tamanho); a zona de toque continua com ~40px por causa do ::after invisível */
+.cm-x { flex: none; position: relative; width: 20px; height: 20px; min-height: 20px; padding: 0; font-size: 11px; line-height: 1; border-radius: 6px; }
+.cm-x::after { content: ''; position: absolute; inset: -10px; }
 .cm-img { width: min(100%, 340px); aspect-ratio: 488 / 680; margin: 0 auto; border-radius: 4.75% / 3.4%; background: var(--surface-2); overflow: hidden; display: grid; place-items: center; }
 .cm-img img { width: 100%; height: 100%; display: block; object-fit: contain; }
 @media (prefers-reduced-motion: no-preference) { .cm-img img.flipin { animation: flipin .28s ease-out; } @keyframes flipin { from { transform: rotateY(90deg); opacity: .3; } to { transform: rotateY(0); opacity: 1; } } }
@@ -304,7 +306,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
       }
       var sb = /^SB:\s*/i.test(line);
       var m = line.replace(/^SB:\s*/i, '').match(/^(\d+)(?:\s*x)?\s+(.+?)(?:\s+\(([A-Za-z0-9]{2,6})\)(?:\s+(\S+))?)?$/);
-      if (!m) { bad.push(raw.trim()); return; }
+      if (!m || Number(m[1]) < 1 || Number(m[1]) > 999) { bad.push(raw.trim()); return; }
       rows.push({ zone: sb ? 'side' : zone, quantity: Number(m[1]), name: m[2].trim(), set: m[3] ? m[3].toLowerCase() : null, num: m[4] || null });
       if (zone === 'main') afterMain = true;
     });
@@ -1063,7 +1065,7 @@ function arenaText(lines) {
     if (!zl.length) return;
     var out = [z[1]];
     zl.slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); }).forEach(function (l) {
-      if (!l.name) { skipped += l.quantity; return; }   // carta por identificar: não dá para exportar
+      if (!l.name) { skipped += l.quantity; return; }   // carta sem entrada no catálogo: não dá para exportar
       var set = l.set_code ? (SET_OUT[l.set_code] || l.set_code.toUpperCase()) : null;
       out.push(l.quantity + ' ' + l.name + (set ? ' (' + set + ')' + (l.collector_number ? ' ' + l.collector_number : '') : ''));
     });
@@ -1072,7 +1074,11 @@ function arenaText(lines) {
   return { text: blocks.join('\n\n'), skipped: skipped };
 }
 function esc(s) { return String(s).replace(/[%_\\]/g, ''); }
-// liga cada linha do texto a uma carta da base de dados (por set + número; senão pelo nome, também pela frente de cartas «A // B»)
+var ZONE_PT = { main: 'main', side: 'sideboard', command: 'comandante', companion: 'companheiro' };
+function cardLabel(name, set, num, zone) {
+  return name + (set ? ' (' + String(set).toUpperCase() + (num ? ' ' + num : '') + ')' : '') + (zone && zone !== 'main' ? ' [' + ZONE_PT[zone] + ']' : '');
+}
+// liga cada linha do texto a uma carta do catálogo (por set + número; senão pelo nome, também pela frente de cartas «A // B»)
 async function resolveRows(rows) {
   var bySetNum = {}, names = {}, found = {}, byName = {};
   rows.forEach(function (r) {
@@ -1087,29 +1093,108 @@ async function resolveRows(rows) {
   rows.forEach(function (r) { if (!(r._set && r.num && found[r._set + ':' + r.num])) names[r.name] = true; });
   var nameList = Object.keys(names);
   for (var n = 0; n < nameList.length; n += 40) {
-    var rn = await q(sb.from('cards').select('arena_id,name').in('name', nameList.slice(n, n + 40)).not('arena_id', 'is', null).order('arena_id', { ascending: false }));
+    var rn = await q(sb.from('cards').select('arena_id,name,set_code,collector_number').in('name', nameList.slice(n, n + 40)).not('arena_id', 'is', null).order('arena_id', { ascending: false }));
     rn.data.forEach(function (c) { if (!byName[c.name]) byName[c.name] = c; });
   }
   for (var k = 0; k < nameList.length; k++) {   // o que falta: nome só da frente («Fire» para «Fire // Ice»)
     var nm = nameList[k]; if (byName[nm]) continue;
-    var r2 = await q(sb.from('cards').select('arena_id,name').ilike('name', esc(nm) + ' // %').not('arena_id', 'is', null).order('arena_id', { ascending: false }).limit(1));
+    var r2 = await q(sb.from('cards').select('arena_id,name,set_code,collector_number').ilike('name', esc(nm) + ' // %').not('arena_id', 'is', null).order('arena_id', { ascending: false }).limit(1));
     if (r2.data && r2.data[0]) byName[nm] = r2.data[0];
   }
-  var ok = {}, notFound = [], total = 0;
+  var ok = {}, unres = {}, total = 0;
   rows.forEach(function (r) {
     var c = (r._set && r.num && found[r._set + ':' + r.num]) || byName[r.name];
-    if (!c) { notFound.push(r.quantity + ' ' + r.name + (r.set ? ' (' + r.set.toUpperCase() + ')' : '')); return; }
+    if (!c) {
+      var uk = r.zone + '|' + r.name.toLowerCase() + '|' + (r.set || '') + '|' + (r.num || '');
+      if (!unres[uk]) unres[uk] = { zone: r.zone, quantity: 0, label: cardLabel(r.name, r.set, r.num, r.zone) };
+      unres[uk].quantity += r.quantity; return;
+    }
     var key = c.arena_id + ':' + r.zone;
-    if (!ok[key]) ok[key] = { arena_id: c.arena_id, zone: r.zone, quantity: 0, name: c.name };
+    if (!ok[key]) ok[key] = { arena_id: c.arena_id, zone: r.zone, quantity: 0, name: c.name, set_code: c.set_code, collector_number: c.collector_number };
     ok[key].quantity += r.quantity; total += r.quantity;
   });
-  return { cards: Object.keys(ok).map(function (k2) { return ok[k2]; }), notFound: notFound, total: total };
+  return { cards: Object.keys(ok).map(function (k2) { return ok[k2]; }), unresolved: Object.keys(unres).map(function (k3) { return unres[k3]; }), total: total };
+}
+/* Compara o deck atual com o texto e devolve o estado final (fin) e as diferenças.
+ *  replace: o deck fica igual ao texto. As cartas SEM entrada no catálogo (as que a app mostra como «por identificar»)
+ *           não se conseguem comparar com texto, por isso NUNCA são apagadas.
+ *  merge:   acrescenta as cartas que faltam e sobe as quantidades menores; não remove nada e não soma em duplicado
+ *           (importar duas vezes o mesmo texto não muda nada à segunda). */
+function diffPlan(lines, plan, mode) {
+  var cur = {}, lab = {}, unk = {};
+  lines.forEach(function (l) {
+    if (l.arena_id == null) return;
+    var k = l.arena_id + ':' + l.zone;
+    cur[k] = (cur[k] || 0) + l.quantity;
+    if (l.name) lab[k] = cardLabel(l.name, l.set_code, l.collector_number, l.zone); else unk[k] = true;
+  });
+  var inc = {};
+  plan.cards.forEach(function (c) { var k = c.arena_id + ':' + c.zone; inc[k] = c.quantity; lab[k] = cardLabel(c.name, c.set_code, c.collector_number, c.zone); });
+  var fin = {};
+  if (mode === 'merge') {
+    Object.keys(cur).forEach(function (k) { fin[k] = cur[k]; });
+    Object.keys(inc).forEach(function (k) { fin[k] = Math.max(cur[k] || 0, inc[k]); });
+  } else {
+    Object.keys(inc).forEach(function (k) { fin[k] = inc[k]; });
+    Object.keys(cur).forEach(function (k) { if (unk[k] && !(k in fin)) fin[k] = cur[k]; });
+  }
+  var added = [], removed = [], changed = [], kept = 0;
+  Object.keys(fin).forEach(function (k) {
+    if (!(k in cur)) added.push(fin[k] + '× ' + lab[k]);
+    else if (fin[k] !== cur[k]) changed.push(lab[k] + ': ' + cur[k] + ' → ' + fin[k]);
+  });
+  Object.keys(cur).forEach(function (k) {
+    if (unk[k]) { kept += cur[k]; return; }
+    if (!(k in fin)) removed.push(cur[k] + '× ' + lab[k]);
+  });
+  return { fin: fin, added: added, removed: removed, changed: changed, keptUnknown: kept, same: !added.length && !removed.length && !changed.length };
+}
+function readDeckCards(deckId) {
+  return q(sb.from('deck_cards').select('arena_id,zone,quantity').eq('deck_id', deckId)).then(function (r) {
+    var m = {}; (r.data || []).forEach(function (c) { m[c.arena_id + ':' + c.zone] = (m[c.arena_id + ':' + c.zone] || 0) + c.quantity; });
+    return m;
+  });
+}
+/* Grava o estado final. Primeiro grava o que mudou, só depois apaga o que sobra (nunca fica um deck vazio se falhar
+ * a meio) e no fim LÊ OUTRA VEZ da base de dados e compara com o esperado: se não bater certo, dá erro em vez de dizer «guardado». */
+async function writeDeck(deckId, fin) {
+  var have = await readDeckCards(deckId);
+  var up = [], del = {};
+  Object.keys(fin).forEach(function (k) {
+    if (have[k] === fin[k]) return;
+    var p = k.split(':'); up.push({ deck_id: deckId, arena_id: Number(p[0]), zone: p[1], quantity: Math.min(fin[k], 999) });
+  });
+  Object.keys(have).forEach(function (k) {
+    if (k in fin) return;
+    var p = k.split(':'); (del[p[1]] = del[p[1]] || []).push(Number(p[0]));
+  });
+  for (var i = 0; i < up.length; i += 500) await q(sb.from('deck_cards').upsert(up.slice(i, i + 500), { onConflict: 'deck_id,arena_id,zone' }));
+  var zs = Object.keys(del);
+  for (var z = 0; z < zs.length; z++) for (var j = 0; j < del[zs[z]].length; j += 100)
+    await q(sb.from('deck_cards').delete().eq('deck_id', deckId).eq('zone', zs[z]).in('arena_id', del[zs[z]].slice(j, j + 100)));
+  await q(sb.from('decks').update({ updated_at: new Date().toISOString() }).eq('id', deckId));
+  var after = await readDeckCards(deckId), bad = 0;
+  Object.keys(fin).forEach(function (k) { if (after[k] !== Math.min(fin[k], 999)) bad++; });
+  Object.keys(after).forEach(function (k) { if (!(k in fin)) bad++; });
+  if (bad) throw new Error('A verificação depois de guardar falhou (' + bad + ' diferenças). O deck pode estar a meio; abre-o e confirma, e se for preciso importa outra vez.');
+  return { written: up.length };
 }
 function planSummary(plan) {
   var cnt = { main: 0, side: 0, command: 0, companion: 0 };
   plan.cards.forEach(function (c) { cnt[c.zone] += c.quantity; });
   var parts = ['main ' + cnt.main]; if (cnt.side) parts.push('sideboard ' + cnt.side); if (cnt.command) parts.push('comandante ' + cnt.command); if (cnt.companion) parts.push('companheiro ' + cnt.companion);
   return parts.join(' · ');
+}
+function listNote(title, items, cls) {
+  if (!items.length) return null;
+  var shown = items.slice(0, 40);
+  return h('details', { class: 'note ' + (cls || '') , open: items.length <= 6 },
+    h('summary', { text: title + ' (' + items.length + ')', style: 'cursor:pointer;font-weight:600' }),
+    h('div', { class: 'small', style: 'margin-top:6px;line-height:1.6' }, shown.map(function (t) { return h('div', { text: t }); }), items.length > shown.length ? h('div', { class: 'muted', text: '… e mais ' + (items.length - shown.length) }) : null));
+}
+function diffNodes(diff) {
+  return [listNote('A acrescentar', diff.added, ''), listNote('A alterar', diff.changed, 'warn'), listNote('A remover', diff.removed, 'warn'),
+    diff.keptUnknown ? h('div', { class: 'small muted', text: diff.keptUnknown + ' carta(s) «por identificar» do Arena ficam como estão (não existem no catálogo, por isso não dá para as comparar com o texto).' }) : null];
 }
 function copyText(text, ta) {
   if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
@@ -1118,25 +1203,6 @@ function copyText(text, ta) {
 function downloadText(name, text) {
   var a = h('a', { href: URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' })), download: name.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80) + '.txt' });
   document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-}
-async function writeDeckCards(deckId, cards, replaceAll) {
-  var have = (await q(sb.from('deck_cards').select('arena_id,zone,quantity').eq('deck_id', deckId))).data || [];
-  var merged = {};
-  if (!replaceAll) have.forEach(function (c) { merged[c.arena_id + ':' + c.zone] = { deck_id: deckId, arena_id: c.arena_id, zone: c.zone, quantity: c.quantity }; });
-  cards.forEach(function (c) {
-    var key = c.arena_id + ':' + c.zone;
-    if (merged[key]) merged[key].quantity += c.quantity; else merged[key] = { deck_id: deckId, arena_id: c.arena_id, zone: c.zone, quantity: c.quantity };
-  });
-  var rows = Object.keys(merged).map(function (k) { merged[k].quantity = Math.min(merged[k].quantity, 999); return merged[k]; });
-  for (var i = 0; i < rows.length; i += 500) await q(sb.from('deck_cards').upsert(rows.slice(i, i + 500), { onConflict: 'deck_id,arena_id,zone' }));   // primeiro grava…
-  if (replaceAll) {   // …e só depois apaga o que sobra, para nunca ficar um deck vazio se algo falhar a meio
-    var keep = {}; rows.forEach(function (r) { keep[r.arena_id + ':' + r.zone] = true; });
-    var stale = {}; have.forEach(function (c) { if (!keep[c.arena_id + ':' + c.zone]) (stale[c.zone] = stale[c.zone] || []).push(c.arena_id); });
-    var zs = Object.keys(stale);
-    for (var z = 0; z < zs.length; z++) for (var j = 0; j < stale[zs[z]].length; j += 100)
-      await q(sb.from('deck_cards').delete().eq('deck_id', deckId).eq('zone', zs[z]).in('arena_id', stale[zs[z]].slice(j, j + 100)));
-  }
-  await q(sb.from('decks').update({ updated_at: new Date().toISOString() }).eq('id', deckId));
 }
 function txModal(title) {
   var prevFocus = document.activeElement, prevOv = document.body.style.overflow;
@@ -1149,6 +1215,7 @@ function txModal(title) {
   el.appendChild(box); document.body.appendChild(el); document.body.style.overflow = 'hidden';
   return { box: box, close: close };
 }
+var IMPORT_PLACEHOLDER = 'Deck\n4 Llanowar Elves (FDN) 227\n20 Forest (FDN) 280\n\nSideboard\n2 Negate (M21) 52';
 // Importar / Exportar um deck existente (botão no detalhe de cada deck)
 function openTransfer(d, lines, onDone) {
   var m = txModal('Importar / Exportar · ' + d.name);
@@ -1167,43 +1234,55 @@ function openTransfer(d, lines, onDone) {
     return h('div', { class: 'stack', style: 'padding:0' },
       h('div', { class: 'small muted', text: 'Toca em «Copiar», abre o Arena → Decks → Importar (o Arena lê a área de transferência) e o deck aparece lá.' }),
       ta,
-      ex.skipped ? h('div', { class: 'note warn', text: ex.skipped + ' carta(s) por identificar não foram incluídas.' }) : null,
+      ex.skipped ? h('div', { class: 'note bad', text: 'Atenção: ' + ex.skipped + ' carta(s) não estão no catálogo da app (aparecem como «por identificar») e NÃO vão no texto. O deck exportado fica incompleto.' }) : null,
       h('div', { class: 'tx-row' },
-        h('button', { class: 'btn', type: 'button', text: 'Copiar', disabled: !ex.text, onclick: async function (e) {
+        h('button', { class: 'btn', type: 'button', text: 'Copiar', disabled: !ex.text, onclick: async function () {
           try { await copyText(ex.text, ta); toast('Copiado. Agora importa no Arena.'); } catch (x) { ta.select(); toast('Não consegui copiar sozinho: o texto está selecionado, copia à mão.'); }
         } }),
         h('button', { class: 'btn ghost', type: 'button', text: 'Descarregar .txt', disabled: !ex.text, onclick: function () { downloadText(d.name, ex.text); } })));
   }
   function importPane() {
-    var ta = h('textarea', { class: 'tx-ta', spellcheck: 'false', placeholder: 'Deck\n4 Llanowar Elves (FDN) 227\n20 Forest (FDN) 280\n\nSideboard\n2 Negate (M21) 52', 'aria-label': 'Texto do deck' });
+    var ta = h('textarea', { class: 'tx-ta', spellcheck: 'false', placeholder: IMPORT_PLACEHOLDER, 'aria-label': 'Texto do deck' });
     var sel = h('select', { 'aria-label': 'O que fazer com o deck atual' },
-      h('option', { value: 'replace', text: 'Substituir as cartas deste deck' }), h('option', { value: 'merge', text: 'Juntar às cartas deste deck' }));
-    var res = h('div'), go = h('button', { class: 'btn', type: 'button', text: 'Verificar texto' }), plan = null;
+      h('option', { value: 'replace', text: 'Substituir: o deck fica igual ao texto' }),
+      h('option', { value: 'merge', text: 'Juntar: acrescenta o que falta e sobe quantidades (não remove nada)' }));
+    var res = h('div', { class: 'stack', style: 'padding:0' }), go = h('button', { class: 'btn', type: 'button', text: 'Verificar texto' });
+    var plan = null, parsed = null;
+    function reset() { plan = null; parsed = null; res.replaceChildren(); go.disabled = false; go.textContent = 'Verificar texto'; }
+    function preview() {
+      var diff = diffPlan(lines, plan, sel.value);
+      plan.diff = diff;
+      res.replaceChildren.apply(res, [
+        h('div', { class: 'note' }, plan.total + ' cartas reconhecidas no catálogo (' + planSummary(plan) + ').'),
+        plan.unresolved.length ? listNote('Sem entrada no catálogo (não dá para as guardar)', plan.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
+        parsed.bad.length ? listNote('Linhas ignoradas (formato não reconhecido)', parsed.bad, 'warn') : null,
+        diff.same ? h('div', { class: 'note warn', text: 'Nenhuma alteração: o deck já está igual ao texto' + (sel.value === 'merge' ? ' (ou o texto não traz nada de novo)' : '') + '. Nada para guardar.' }) : null
+      ].concat(diffNodes(diff)).concat([
+        d.source === 'log' || d.arena_deck_id ? h('div', { class: 'small muted', text: 'Nota: este deck veio do Player.log; se importares o Player.log outra vez, as cartas voltam às do Arena.' }) : null]));
+      go.textContent = 'Guardar alterações'; go.disabled = diff.same;
+    }
+    ta.addEventListener('input', reset);
+    sel.addEventListener('change', function () { if (plan) preview(); });
     go.addEventListener('click', async function () {
       go.disabled = true;
       try {
-        if (plan) {   // 2.º passo: aplicar
+        if (plan) {   // 2.º passo: guardar (com verificação)
           go.textContent = 'A guardar…';
-          await writeDeckCards(d.deck_id, plan.cards, sel.value === 'replace');
-          toast('Deck atualizado: ' + planSummary(plan) + '.'); m.close(); if (onDone) await onDone(); return;
+          var d2 = plan.diff;
+          await writeDeck(d.deck_id, d2.fin);
+          toast('Guardado e confirmado: +' + d2.added.length + ' novas, ' + d2.changed.length + ' alteradas, −' + d2.removed.length + ' removidas.');
+          m.close(); if (onDone) await onDone(); return;
         }
-        var p = window.MTGLog.parseDeckText(ta.value);
-        if (!p.rows.length) throw new Error('Não encontrei nenhuma linha de carta. Usa o formato «4 Nome da carta (SET) 123».');
+        parsed = window.MTGLog.parseDeckText(ta.value);
+        if (!parsed.rows.length) throw new Error('Não encontrei nenhuma linha de carta. Usa o formato «4 Nome da carta (SET) 123».');
         res.replaceChildren(h('p', { class: 'muted', text: 'A procurar as cartas…' }));
-        var r = await resolveRows(p.rows);
-        if (!r.cards.length) throw new Error('Nenhuma carta foi reconhecida.');
-        plan = r; ta.readOnly = true; sel.disabled = true;
-        res.replaceChildren(h('div', { class: 'stack', style: 'padding:0' },
-          h('div', { class: 'note' }, r.total + ' cartas reconhecidas (' + planSummary(r) + ').'),
-          r.notFound.length ? h('div', { class: 'note warn', text: 'Não encontrei ' + r.notFound.length + ': ' + r.notFound.slice(0, 10).join('; ') + (r.notFound.length > 10 ? '…' : '') + '. Estas ficam de fora.' }) : null,
-          p.bad.length ? h('div', { class: 'note warn', text: p.bad.length + ' linha(s) ignoradas (formato não reconhecido).' }) : null,
-          d.source === 'log' || d.arena_deck_id ? h('div', { class: 'small muted', text: 'Nota: este deck veio do Player.log; se importares o Player.log outra vez, as cartas voltam às do Arena.' }) : null));
-        go.textContent = (sel.value === 'replace' ? 'Substituir' : 'Juntar') + ' e guardar';
-      } catch (e) { res.replaceChildren(h('div', { class: 'note bad', text: e.message })); plan = null; ta.readOnly = false; sel.disabled = false; go.textContent = 'Verificar texto'; }
-      go.disabled = false;
+        plan = await resolveRows(parsed.rows);
+        if (!plan.cards.length) { var u = plan.unresolved.length; plan = null; throw new Error('Nenhuma carta foi reconhecida no catálogo' + (u ? ' (' + u + ' linhas sem entrada)' : '') + '.'); }
+        preview();
+      } catch (e) { res.replaceChildren(h('div', { class: 'note bad', text: e.message })); plan = null; go.textContent = 'Verificar texto'; go.disabled = false; return; }
     });
     return h('div', { class: 'stack', style: 'padding:0' },
-      h('div', { class: 'small muted', text: 'No Arena: abre o deck → Exportar (copia o texto) e cola aqui.' }), ta,
+      h('div', { class: 'small muted', text: 'No Arena: abre o deck → Exportar (copia o texto) e cola aqui. Primeiro vês exatamente o que vai mudar; só depois guardas.' }), ta,
       h('label', null, 'O que fazer', sel), res, go);
   }
   paint();
@@ -1211,35 +1290,38 @@ function openTransfer(d, lines, onDone) {
 // Deck novo a partir de texto do Arena
 function openNewDeckImport() {
   var m = txModal('Importar deck novo');
-  var ta = h('textarea', { class: 'tx-ta', spellcheck: 'false', placeholder: 'Deck\n4 Llanowar Elves (FDN) 227\n20 Forest (FDN) 280\n\nSideboard\n2 Negate (M21) 52', 'aria-label': 'Texto do deck' });
+  var ta = h('textarea', { class: 'tx-ta', spellcheck: 'false', placeholder: IMPORT_PLACEHOLDER, 'aria-label': 'Texto do deck' });
   var nameIn = h('input', { type: 'text', placeholder: 'Nome do deck', maxlength: 80, 'aria-label': 'Nome do deck' });
   var fmts = ['standard', 'alchemy', 'historic', 'pioneer', 'timeless', 'brawl', 'standard_brawl', 'competitive_brawl', 'custom'];
   var fsel = h('select', { 'aria-label': 'Formato' }, fmts.map(function (f) { return h('option', { value: f, text: FORMAT_LABEL[f] || f }); }));
-  var res = h('div'), go = h('button', { class: 'btn', type: 'button', text: 'Verificar texto' }), plan = null, pname = null;
+  var res = h('div', { class: 'stack', style: 'padding:0' }), go = h('button', { class: 'btn', type: 'button', text: 'Verificar texto' }), plan = null, parsed = null;
+  ta.addEventListener('input', function () { plan = null; parsed = null; res.replaceChildren(); go.disabled = false; go.textContent = 'Verificar texto'; });
   go.addEventListener('click', async function () {
     go.disabled = true;
     try {
       if (plan) {
         go.textContent = 'A criar…';
-        var nm = nameIn.value.trim() || pname || 'Deck importado';
+        var nm = nameIn.value.trim() || parsed.name || 'Deck importado';
         var ins = await q(sb.from('decks').insert({ user_id: S.session.user.id, name: nm, format_code: fsel.value, source: 'import', is_bo1: true }).select('id'));
-        await writeDeckCards(ins.data[0].id, plan.cards, true);
-        toast('Deck criado: ' + nm + '.'); m.close(); await loadAll(); S.tab = 'decks'; S.fmt = 'all'; S.q = ''; render(); return;
+        var id = ins.data[0].id;
+        try { await writeDeck(id, plan.diff.fin); }
+        catch (e) { try { await sb.from('decks').delete().eq('id', id); } catch (x) { /* ignora */ } throw e; }   // sem deck vazio a meio
+        toast('Deck criado e confirmado: ' + nm + '.'); m.close(); await loadAll(); S.tab = 'decks'; S.fmt = 'all'; S.q = ''; render(); return;
       }
-      var p = window.MTGLog.parseDeckText(ta.value);
-      if (!p.rows.length) throw new Error('Não encontrei nenhuma linha de carta. Usa o formato «4 Nome da carta (SET) 123».');
+      parsed = window.MTGLog.parseDeckText(ta.value);
+      if (!parsed.rows.length) throw new Error('Não encontrei nenhuma linha de carta. Usa o formato «4 Nome da carta (SET) 123».');
       res.replaceChildren(h('p', { class: 'muted', text: 'A procurar as cartas…' }));
-      var r = await resolveRows(p.rows);
-      if (!r.cards.length) throw new Error('Nenhuma carta foi reconhecida.');
-      plan = r; pname = p.name; ta.readOnly = true;
-      if (p.name && !nameIn.value.trim()) nameIn.value = p.name;
-      if (p.rows.some(function (x) { return x.zone === 'command'; })) fsel.value = 'brawl';
-      res.replaceChildren(h('div', { class: 'stack', style: 'padding:0' },
+      var r = await resolveRows(parsed.rows);
+      if (!r.cards.length) throw new Error('Nenhuma carta foi reconhecida no catálogo.');
+      r.diff = diffPlan([], r, 'replace'); plan = r;
+      if (parsed.name && !nameIn.value.trim()) nameIn.value = parsed.name;
+      if (parsed.rows.some(function (x) { return x.zone === 'command'; })) fsel.value = 'brawl';
+      res.replaceChildren(
         h('div', { class: 'note' }, r.total + ' cartas reconhecidas (' + planSummary(r) + '). Confirma o nome e o formato e guarda.'),
-        r.notFound.length ? h('div', { class: 'note warn', text: 'Não encontrei ' + r.notFound.length + ': ' + r.notFound.slice(0, 10).join('; ') + (r.notFound.length > 10 ? '…' : '') + '. Estas ficam de fora.' }) : null,
-        p.bad.length ? h('div', { class: 'note warn', text: p.bad.length + ' linha(s) ignoradas (formato não reconhecido).' }) : null));
-      go.textContent = 'Criar deck';
-    } catch (e) { res.replaceChildren(h('div', { class: 'note bad', text: e.message })); plan = null; ta.readOnly = false; go.textContent = 'Verificar texto'; }
+        r.unresolved.length ? listNote('Sem entrada no catálogo: ficam de fora do deck', r.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
+        parsed.bad.length ? listNote('Linhas ignoradas (formato não reconhecido)', parsed.bad, 'warn') : null);
+      go.textContent = r.unresolved.length ? 'Criar deck sem estas ' + r.unresolved.length + ' cartas' : 'Criar deck';
+    } catch (e) { res.replaceChildren(h('div', { class: 'note bad', text: e.message })); plan = null; go.textContent = 'Verificar texto'; }
     go.disabled = false;
   });
   m.box.appendChild(h('div', { class: 'stack', style: 'padding:0' },

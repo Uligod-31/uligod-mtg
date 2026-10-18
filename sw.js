@@ -6,8 +6,10 @@
  * origem revalidam com o servidor em vez de usarem a cache HTTP do GitHub Pages (que dura cerca de 10 min).
  * v3: sem offline, o fallback ignora parâmetros do endereço; só guarda respostas completas (200).
  * v4: novo nome da app (Üligod's MTG Deck Builder) e janela da carta revista; força a renovação da cache.
- * v5: virar carta decidido pelos dados reais do Scryfall; botão Importar/Exportar (formato do Arena) em cada deck. Força a renovação da cache. */
-var CACHE = 'uligod-mtg-shell-v5';
+ * v5: virar carta decidido pelos dados reais do Scryfall; botão Importar/Exportar (formato do Arena) em cada deck. Força a renovação da cache.
+ * v6: Importar/Exportar revisto (pré-visualização das diferenças, verificação depois de guardar, nunca apaga cartas por identificar).
+ * v7: botão X mais pequeno (20px, com zona de toque maior). */
+var CACHE = 'uligod-mtg-shell-v7';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
