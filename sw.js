@@ -9,7 +9,7 @@
  * v5: virar carta decidido pelos dados reais do Scryfall; botão Importar/Exportar (formato do Arena) em cada deck. Força a renovação da cache.
  * v6: Importar/Exportar revisto (pré-visualização das diferenças, verificação depois de guardar, nunca apaga cartas por identificar).
  * v7: botão X mais pequeno (20px, com zona de toque maior). */
-var CACHE = 'uligod-mtg-shell-v7';
+var CACHE = 'uligod-mtg-shell-v9';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {

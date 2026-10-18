@@ -143,12 +143,12 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .cm { position: fixed; inset: 0; z-index: 40; background: rgba(8, 10, 14, .74); display: grid; place-items: center;
   padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
 /* Coluna (flex) em vez de grelha: os blocos nunca encolhem uns para cima dos outros; se faltar altura, a janela faz scroll. */
-.cm-box { width: min(100%, 440px); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.cm-box { position: relative; width: min(100%, 440px); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 .cm-box > * { flex: none; }
 .cm-top { display: flex; align-items: center; justify-content: flex-end; }
-/* X pequeno (metade do tamanho); a zona de toque continua com ~40px por causa do ::after invisível */
-.cm-x { flex: none; position: relative; width: 20px; height: 20px; min-height: 20px; padding: 0; font-size: 11px; line-height: 1; border-radius: 6px; }
-.cm-x::after { content: ''; position: absolute; inset: -10px; }
+/* X: 30px visíveis e 30px de toque (sem área extra). Na janela da carta flutua no canto, sem ocupar uma linha própria. */
+.cm-x { flex: none; width: 30px; height: 30px; min-height: 30px; padding: 0; font-size: 14px; line-height: 1; border-radius: 8px; display: inline-grid; place-items: center; }
+.cm-x.fl { position: absolute; top: 8px; right: 8px; z-index: 3; box-shadow: 0 1px 6px rgba(0, 0, 0, .35); }
 .cm-img { width: min(100%, 340px); aspect-ratio: 488 / 680; margin: 0 auto; border-radius: 4.75% / 3.4%; background: var(--surface-2); overflow: hidden; display: grid; place-items: center; }
 .cm-img img { width: 100%; height: 100%; display: block; object-fit: contain; }
 @media (prefers-reduced-motion: no-preference) { .cm-img img.flipin { animation: flipin .28s ease-out; } @keyframes flipin { from { transform: rotateY(90deg); opacity: .3; } to { transform: rotateY(0); opacity: 1; } } }
@@ -161,7 +161,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .sym { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 3px; border-radius: 10px; font: 600 11px/1 var(--mono); background: #cfd3d8; color: #151a21; border: 1px solid rgba(0, 0, 0, .25); }
 .sym.W { background: #f4efd6; } .sym.U { background: #5aa0d8; } .sym.B { background: #4a4348; color: #fff; } .sym.R { background: #d9573e; } .sym.G { background: #4aa564; }
 .cm.tx { z-index: 50; }
-.cm.tx .cm-box { width: min(100%, 520px); }
+.cm.tx .cm-box { width: min(100%, 520px); padding: 12px; gap: 10px; }
 .tx-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .tx-head h2 { font-size: 18px; overflow-wrap: anywhere; }
 .tx-ta { min-height: 220px; width: 100%; white-space: pre; overflow: auto; }
@@ -292,7 +292,11 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
   function parseDeckText(text) {
     var rows = [], bad = [], name = null, zone = 'main', header = false, afterMain = false;
     var HEAD = /^(deck|main\s*deck|main|sideboard|side\s*board|side|commander|companion)\s*:?$/i;
-    String(text || '').split(/\r?\n/).forEach(function (raw) {
+    // normaliza: espaços invisíveis, \r isolado e colagens numa só linha (entradas coladas umas às outras)
+    var norm = String(text || '').replace(/[\u00a0\u2007\u202f\u200b\ufeff]/g, ' ').replace(/\r\n?|\u2028|\u2029/g, '\n')
+      .replace(/(\([A-Za-z0-9]{1,6}\)\s+\S+)[ \t]+(?=(?:\d{1,3}\s*x?\s+[^\s\d]|(?:deck|sideboard|commander|companion)\b))/gi, '$1\n')
+      .replace(/^[ \t]*(deck|sideboard|commander|companion)[ \t]+(?=\d)/gim, '$1\n');
+    norm.split('\n').forEach(function (raw) {
       var line = raw.replace(/\*F\*|\[[^\]]*\]/g, '').trim();   // tira marcas de foil e etiquetas
       if (!line) { if (!header && afterMain && zone === 'main') zone = 'side'; return; }   // sem cabeçalhos: a linha em branco separa o sideboard
       if (/^(\/\/|#)/.test(line) || /^about$/i.test(line)) return;
@@ -305,7 +309,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
         header = true; return;
       }
       var sb = /^SB:\s*/i.test(line);
-      var m = line.replace(/^SB:\s*/i, '').match(/^(\d+)(?:\s*x)?\s+(.+?)(?:\s+\(([A-Za-z0-9]{2,6})\)(?:\s+(\S+))?)?$/);
+      var m = line.replace(/^SB:\s*/i, '').match(/^(\d+)(?:\s*x)?\s+(.+?)(?:\s+\(([A-Za-z0-9]{1,6})\)(?:\s+(\S+))?)?$/);
       if (!m || Number(m[1]) < 1 || Number(m[1]) > 999) { bad.push(raw.trim()); return; }
       rows.push({ zone: sb ? 'side' : zone, quantity: Number(m[1]), name: m[2].trim(), set: m[3] ? m[3].toLowerCase() : null, num: m[4] || null });
       if (zone === 'main') afterMain = true;
@@ -349,6 +353,10 @@ function add(el, c) {
   if (c == null || c === false) return;
   if (Array.isArray(c)) c.forEach(function (x) { add(el, x); });
   else el.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+}
+function fill(el) {   // como replaceChildren, mas ignora null/false (o nativo escreveria o texto «null»)
+  el.replaceChildren();
+  for (var i = 1; i < arguments.length; i++) add(el, arguments[i]);
 }
 function toast(msg) {
   var t = document.getElementById('toast'); t.textContent = msg; t.hidden = false;
@@ -593,8 +601,7 @@ function cardView(item, c, loading) {
       c.set_code ? h('span', { class: 'chip num', text: c.set_code.toUpperCase() + (c.collector_number ? ' ' + c.collector_number : '') }) : null,
       c.is_digital ? h('span', { class: 'chip acc', text: 'Digital' }) : null] : null) : null;
   var box = h('div', { class: 'cm-box', 'aria-label': title },
-    h('div', { class: 'cm-top' },
-      h('button', { class: 'back cm-x', type: 'button', 'aria-label': 'Fechar ' + title, text: '✕', onclick: function () { closeCard(); } })),
+    h('button', { class: 'back cm-x fl', type: 'button', 'aria-label': 'Fechar ' + title, text: '✕', onclick: function () { closeCard(); } }),
     img,
     info,
     leg, own,
@@ -817,7 +824,7 @@ function viewDecks() {
       if (S.fmt === 'problems' && !deckProblems(d).length) return false;
       return !qq || d.name.toLowerCase().indexOf(qq) !== -1;
     });
-    list.replaceChildren.apply(list, items.length ? items.map(deckRow) : [h('p', { class: 'muted', text: 'Nenhum deck com este filtro.' })]);
+    fill(list, items.length ? items.map(deckRow) : h('p', { class: 'muted', text: 'Nenhum deck com este filtro.' }));
     count.textContent = sentence(items.length, 'deck', 'decks');
   }
   var count = h('span', { class: 'muted small' });
@@ -869,6 +876,10 @@ async function openDeck(d) {
       var cr = await q(sb.from('deck_craft_summary').select('*').eq('deck_id', d.deck_id).maybeSingle());
       craft = cr.data;
     }
+    try {
+      var xr = await q(sb.from('deck_extra_cards').select('zone,name,set_code,collector_number,quantity').eq('deck_id', d.deck_id));
+      (xr.data || []).forEach(function (x) { lines.push({ deck_id: d.deck_id, arena_id: null, extra: true, zone: x.zone, name: x.name, set_code: x.set_code || null, collector_number: x.collector_number || null, quantity: x.quantity, type_line: null, cmc: 0, rarity: null, colors: null, image_uri: null, legality: null }); });
+    } catch (ex) { /* sem cartas extra */ }
     curLines = lines; xbtn.disabled = false;
     body.replaceChildren(deckDetail(d, lines, craft));
   } catch (e) { body.replaceChildren(h('div', { class: 'note bad', text: 'Não foi possível carregar o deck: ' + e.message })); }
@@ -1078,6 +1089,13 @@ var ZONE_PT = { main: 'main', side: 'sideboard', command: 'comandante', companio
 function cardLabel(name, set, num, zone) {
   return name + (set ? ' (' + String(set).toUpperCase() + (num ? ' ' + num : '') + ')' : '') + (zone && zone !== 'main' ? ' [' + ZONE_PT[zone] + ']' : '');
 }
+function nmKey(x) { return String(x || '').toLowerCase().replace(/^a-/, '').replace(/\s+/g, ' ').trim(); }
+function nameMatches(rowName, cardName) {   // «Fable» casa com «Fable // Reflection»; «A-Nome» com «Nome»
+  var a = nmKey(rowName), b = nmKey(cardName);
+  if (a === b) return true;
+  var fa = a.split(' // '), fb = b.split(' // ');
+  return fa[0] === fb[0] || fa[0] === b || a === fb[0];
+}
 // liga cada linha do texto a uma carta do catálogo (por set + número; senão pelo nome, também pela frente de cartas «A // B»)
 async function resolveRows(rows) {
   var bySetNum = {}, names = {}, found = {}, byName = {};
@@ -1090,7 +1108,8 @@ async function resolveRows(rows) {
     var rs = await q(sb.from('cards').select('arena_id,name,set_code,collector_number').eq('set_code', sets[i]).in('collector_number', Object.keys(bySetNum[sets[i]])).not('arena_id', 'is', null));
     rs.data.forEach(function (c) { found[c.set_code + ':' + c.collector_number] = c; });
   }
-  rows.forEach(function (r) { if (!(r._set && r.num && found[r._set + ':' + r.num])) names[r.name] = true; });
+  function hit(r) { var c = r._set && r.num && found[r._set + ':' + r.num]; return c && nameMatches(r.name, c.name) ? c : null; }   // set+número só vale se o nome bate (evita ler a carta errada)
+  rows.forEach(function (r) { if (!hit(r)) names[r.name] = true; });
   var nameList = Object.keys(names);
   for (var n = 0; n < nameList.length; n += 40) {
     var rn = await q(sb.from('cards').select('arena_id,name,set_code,collector_number').in('name', nameList.slice(n, n + 40)).not('arena_id', 'is', null).order('arena_id', { ascending: false }));
@@ -1103,10 +1122,10 @@ async function resolveRows(rows) {
   }
   var ok = {}, unres = {}, total = 0;
   rows.forEach(function (r) {
-    var c = (r._set && r.num && found[r._set + ':' + r.num]) || byName[r.name];
+    var c = hit(r) || byName[r.name];
     if (!c) {
       var uk = r.zone + '|' + r.name.toLowerCase() + '|' + (r.set || '') + '|' + (r.num || '');
-      if (!unres[uk]) unres[uk] = { zone: r.zone, quantity: 0, label: cardLabel(r.name, r.set, r.num, r.zone) };
+      if (!unres[uk]) unres[uk] = { zone: r.zone, quantity: 0, name: r.name, set_code: r.set || '', collector_number: r.num || '', label: cardLabel(r.name, r.set, r.num, r.zone) };
       unres[uk].quantity += r.quantity; return;
     }
     var key = c.arena_id + ':' + r.zone;
@@ -1138,7 +1157,22 @@ function diffPlan(lines, plan, mode) {
     Object.keys(inc).forEach(function (k) { fin[k] = inc[k]; });
     Object.keys(cur).forEach(function (k) { if (unk[k] && !(k in fin)) fin[k] = cur[k]; });
   }
+  // cartas «extra» (sem entrada no catálogo, guardadas só pelo nome)
+  var curX = {}, incX = {}, finX = {};
+  function xk(x) { return x.zone + '|' + nmKey(x.name) + '|' + String(x.set_code || '').toLowerCase() + '|' + (x.collector_number || ''); }
+  lines.forEach(function (l) { if (l.extra) { var k = xk(l); curX[k] = { zone: l.zone, name: l.name, set_code: String(l.set_code || '').toLowerCase(), collector_number: l.collector_number || '', quantity: (curX[k] ? curX[k].quantity : 0) + l.quantity }; } });
+  (plan.unresolved || []).forEach(function (u) { var k = xk(u); incX[k] = { zone: u.zone, name: u.name, set_code: String(u.set_code || '').toLowerCase(), collector_number: u.collector_number || '', quantity: (incX[k] ? incX[k].quantity : 0) + u.quantity }; });
+  Object.keys(incX).forEach(function (k) { finX[k] = Object.assign({}, incX[k]); });
+  if (mode === 'merge') {
+    Object.keys(curX).forEach(function (k) { if (!finX[k]) finX[k] = Object.assign({}, curX[k]); else finX[k].quantity = Math.max(finX[k].quantity, curX[k].quantity); });
+  }
+  var xl = function (x) { return cardLabel(x.name, x.set_code, x.collector_number, x.zone); };
   var added = [], removed = [], changed = [], kept = 0;
+  Object.keys(finX).forEach(function (k) {
+    if (!curX[k]) added.push(finX[k].quantity + '× ' + xl(finX[k]) + ' (só pelo nome)');
+    else if (curX[k].quantity !== finX[k].quantity) changed.push(xl(finX[k]) + ': ' + curX[k].quantity + ' → ' + finX[k].quantity);
+  });
+  Object.keys(curX).forEach(function (k) { if (!finX[k]) removed.push(curX[k].quantity + '× ' + xl(curX[k]) + ' (só pelo nome)'); });
   Object.keys(fin).forEach(function (k) {
     if (!(k in cur)) added.push(fin[k] + '× ' + lab[k]);
     else if (fin[k] !== cur[k]) changed.push(lab[k] + ': ' + cur[k] + ' → ' + fin[k]);
@@ -1147,7 +1181,10 @@ function diffPlan(lines, plan, mode) {
     if (unk[k]) { kept += cur[k]; return; }
     if (!(k in fin)) removed.push(cur[k] + '× ' + lab[k]);
   });
-  return { fin: fin, added: added, removed: removed, changed: changed, keptUnknown: kept, same: !added.length && !removed.length && !changed.length };
+  return { fin: fin, finX: Object.keys(finX).map(function (k) { return finX[k]; }), added: added, removed: removed, changed: changed, keptUnknown: kept, same: !added.length && !removed.length && !changed.length };
+}
+function readExtras(deckId) {
+  return q(sb.from('deck_extra_cards').select('zone,name,set_code,collector_number,quantity').eq('deck_id', deckId)).then(function (r) { return r.data || []; });
 }
 function readDeckCards(deckId) {
   return q(sb.from('deck_cards').select('arena_id,zone,quantity').eq('deck_id', deckId)).then(function (r) {
@@ -1157,7 +1194,7 @@ function readDeckCards(deckId) {
 }
 /* Grava o estado final. Primeiro grava o que mudou, só depois apaga o que sobra (nunca fica um deck vazio se falhar
  * a meio) e no fim LÊ OUTRA VEZ da base de dados e compara com o esperado: se não bater certo, dá erro em vez de dizer «guardado». */
-async function writeDeck(deckId, fin) {
+async function writeDeck(deckId, fin, finX) {
   var have = await readDeckCards(deckId);
   var up = [], del = {};
   Object.keys(fin).forEach(function (k) {
@@ -1176,6 +1213,19 @@ async function writeDeck(deckId, fin) {
   var after = await readDeckCards(deckId), bad = 0;
   Object.keys(fin).forEach(function (k) { if (after[k] !== Math.min(fin[k], 999)) bad++; });
   Object.keys(after).forEach(function (k) { if (!(k in fin)) bad++; });
+  if (finX) {   // cartas extra: grava, apaga o que sobra e confirma
+    var rowsX = finX.map(function (x) { return { deck_id: deckId, zone: x.zone, name: x.name, set_code: x.set_code || '', collector_number: x.collector_number || '', quantity: Math.min(x.quantity, 999) }; });
+    var haveX = await readExtras(deckId), keepK = {};
+    rowsX.forEach(function (r) { keepK[r.zone + '|' + r.name + '|' + r.set_code + '|' + r.collector_number] = true; });
+    for (var a = 0; a < rowsX.length; a += 300) await q(sb.from('deck_extra_cards').upsert(rowsX.slice(a, a + 300), { onConflict: 'deck_id,zone,name,set_code,collector_number' }));
+    for (var b = 0; b < haveX.length; b++) {
+      var hx = haveX[b];
+      if (!keepK[hx.zone + '|' + hx.name + '|' + hx.set_code + '|' + hx.collector_number])
+        await q(sb.from('deck_extra_cards').delete().eq('deck_id', deckId).eq('zone', hx.zone).eq('name', hx.name).eq('set_code', hx.set_code).eq('collector_number', hx.collector_number));
+    }
+    var afterX = await readExtras(deckId), sumX = function (arr) { return arr.reduce(function (t, r) { return t + r.quantity; }, 0); };
+    if (afterX.length !== rowsX.length || sumX(afterX) !== sumX(rowsX)) bad++;
+  }
   if (bad) throw new Error('A verificação depois de guardar falhou (' + bad + ' diferenças). O deck pode estar a meio; abre-o e confirma, e se for preciso importa outra vez.');
   return { written: up.length };
 }
@@ -1252,9 +1302,9 @@ function openTransfer(d, lines, onDone) {
     function preview() {
       var diff = diffPlan(lines, plan, sel.value);
       plan.diff = diff;
-      res.replaceChildren.apply(res, [
+      fill(res, [
         h('div', { class: 'note' }, plan.total + ' cartas reconhecidas no catálogo (' + planSummary(plan) + ').'),
-        plan.unresolved.length ? listNote('Sem entrada no catálogo (não dá para as guardar)', plan.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
+        plan.unresolved.length ? listNote('Sem entrada no catálogo (ficam guardadas só pelo nome)', plan.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
         parsed.bad.length ? listNote('Linhas ignoradas (formato não reconhecido)', parsed.bad, 'warn') : null,
         diff.same ? h('div', { class: 'note warn', text: 'Nenhuma alteração: o deck já está igual ao texto' + (sel.value === 'merge' ? ' (ou o texto não traz nada de novo)' : '') + '. Nada para guardar.' }) : null
       ].concat(diffNodes(diff)).concat([
@@ -1269,7 +1319,7 @@ function openTransfer(d, lines, onDone) {
         if (plan) {   // 2.º passo: guardar (com verificação)
           go.textContent = 'A guardar…';
           var d2 = plan.diff;
-          await writeDeck(d.deck_id, d2.fin);
+          await writeDeck(d.deck_id, d2.fin, d2.finX);
           toast('Guardado e confirmado: +' + d2.added.length + ' novas, ' + d2.changed.length + ' alteradas, −' + d2.removed.length + ' removidas.');
           m.close(); if (onDone) await onDone(); return;
         }
@@ -1304,7 +1354,7 @@ function openNewDeckImport() {
         var nm = nameIn.value.trim() || parsed.name || 'Deck importado';
         var ins = await q(sb.from('decks').insert({ user_id: S.session.user.id, name: nm, format_code: fsel.value, source: 'import', is_bo1: true }).select('id'));
         var id = ins.data[0].id;
-        try { await writeDeck(id, plan.diff.fin); }
+        try { await writeDeck(id, plan.diff.fin, plan.diff.finX); }
         catch (e) { try { await sb.from('decks').delete().eq('id', id); } catch (x) { /* ignora */ } throw e; }   // sem deck vazio a meio
         toast('Deck criado e confirmado: ' + nm + '.'); m.close(); await loadAll(); S.tab = 'decks'; S.fmt = 'all'; S.q = ''; render(); return;
       }
@@ -1316,11 +1366,11 @@ function openNewDeckImport() {
       r.diff = diffPlan([], r, 'replace'); plan = r;
       if (parsed.name && !nameIn.value.trim()) nameIn.value = parsed.name;
       if (parsed.rows.some(function (x) { return x.zone === 'command'; })) fsel.value = 'brawl';
-      res.replaceChildren(
+      fill(res,
         h('div', { class: 'note' }, r.total + ' cartas reconhecidas (' + planSummary(r) + '). Confirma o nome e o formato e guarda.'),
-        r.unresolved.length ? listNote('Sem entrada no catálogo: ficam de fora do deck', r.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
+        r.unresolved.length ? listNote('Sem entrada no catálogo (ficam guardadas só pelo nome)', r.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
         parsed.bad.length ? listNote('Linhas ignoradas (formato não reconhecido)', parsed.bad, 'warn') : null);
-      go.textContent = r.unresolved.length ? 'Criar deck sem estas ' + r.unresolved.length + ' cartas' : 'Criar deck';
+      go.textContent = 'Criar deck';
     } catch (e) { res.replaceChildren(h('div', { class: 'note bad', text: e.message })); plan = null; go.textContent = 'Verificar texto'; }
     go.disabled = false;
   });
@@ -1351,7 +1401,7 @@ async function saveLog(p, removeMissing) {
   }
   if (toUpdate.length) await q(sb.from('decks').upsert(toUpdate, { onConflict: 'id' }));
   var ids = p.decks.map(function (d) { return idOf[d.arena_deck_id]; });
-  for (var i = 0; i < ids.length; i += 20) await q(sb.from('deck_cards').delete().in('deck_id', ids.slice(i, i + 20)));
+  for (var i = 0; i < ids.length; i += 20) { await q(sb.from('deck_cards').delete().in('deck_id', ids.slice(i, i + 20))); await q(sb.from('deck_extra_cards').delete().in('deck_id', ids.slice(i, i + 20))); }   // o Player.log traz as cartas reais: as «extra» deixam de ser precisas
   var rows = [];
   p.decks.forEach(function (d) { d.cards.forEach(function (c) { rows.push({ deck_id: idOf[d.arena_deck_id], arena_id: c.arena_id, quantity: c.quantity, zone: c.zone }); }); });
   for (var j = 0; j < rows.length; j += 800) await q(sb.from('deck_cards').insert(rows.slice(j, j + 800)));
