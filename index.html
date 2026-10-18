@@ -146,9 +146,11 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .cm-box { position: relative; width: min(100%, 440px); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 .cm-box > * { flex: none; }
 .cm-top { display: flex; align-items: center; justify-content: flex-end; }
-/* X: 30px visíveis e 30px de toque (sem área extra). Na janela da carta flutua no canto, sem ocupar uma linha própria. */
-.cm-x { flex: none; width: 30px; height: 30px; min-height: 30px; padding: 0; font-size: 14px; line-height: 1; border-radius: 8px; display: inline-grid; place-items: center; }
-.cm-x.fl { position: absolute; top: 8px; right: 8px; z-index: 3; box-shadow: 0 1px 6px rgba(0, 0, 0, .35); }
+/* X: só o símbolo (sem caixa, borda nem fundo); 30px de tamanho e 30px de zona de toque. Na janela da carta flutua no canto. */
+.cm-x, .cm-x:hover, .cm-x:active { flex: none; width: 30px; height: 30px; min-height: 30px; padding: 0; margin: 0; background: none; border: 0; border-radius: 0; box-shadow: none;
+  font-size: 26px; font-weight: 300; line-height: 30px; text-align: center; color: var(--fg); cursor: pointer; display: inline-block; }
+.cm-x:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.cm-x.fl { position: absolute; top: 4px; right: 4px; z-index: 3; color: #fff; text-shadow: 0 0 2px #000, 0 0 5px #000, 0 0 9px rgba(0, 0, 0, .8); }
 .cm-img { width: min(100%, 340px); aspect-ratio: 488 / 680; margin: 0 auto; border-radius: 4.75% / 3.4%; background: var(--surface-2); overflow: hidden; display: grid; place-items: center; }
 .cm-img img { width: 100%; height: 100%; display: block; object-fit: contain; }
 @media (prefers-reduced-motion: no-preference) { .cm-img img.flipin { animation: flipin .28s ease-out; } @keyframes flipin { from { transform: rotateY(90deg); opacity: .3; } to { transform: rotateY(0); opacity: 1; } } }
@@ -431,12 +433,16 @@ var CARD_COLS = 'scryfall_id,arena_id,oracle_id,name,set_code,collector_number,r
 var CM = { el: null, list: [], i: 0, back: false, token: 0, prevFocus: null, prevOverflow: '' };
 
 async function fetchCard(item) {
-  var key = item.arena_id != null ? 'a' + item.arena_id : 'n' + item.name;
+  var key = item.arena_id != null ? 'a' + item.arena_id : (item.set_code && item.collector_number ? 's' + item.set_code + ':' + item.collector_number : 'n' + item.name);
   if (S.cardCache[key]) return S.cardCache[key];
   var row = null;
   if (item.arena_id != null) {
     row = (await q(sb.from('cards').select(CARD_COLS).eq('arena_id', item.arena_id).maybeSingle())).data;
-  } else if (item.name) {
+  } else if (item.set_code && item.collector_number) {   // carta «extra»: o Arena escreve o nome à sua maneira, mas set + número são exatos
+    var rs0 = await q(sb.from('cards').select(CARD_COLS).eq('set_code', item.set_code).eq('collector_number', item.collector_number).limit(1));
+    row = rs0.data && rs0.data[0];
+  }
+  if (!row && item.arena_id == null && item.name) {
     var r = await q(sb.from('cards').select(CARD_COLS).eq('name', item.name).order('arena_id', { ascending: false, nullsFirst: false }).limit(1));
     row = r.data && r.data[0];
     if (!row) {
@@ -878,7 +884,17 @@ async function openDeck(d) {
     }
     try {
       var xr = await q(sb.from('deck_extra_cards').select('zone,name,set_code,collector_number,quantity').eq('deck_id', d.deck_id));
-      (xr.data || []).forEach(function (x) { lines.push({ deck_id: d.deck_id, arena_id: null, extra: true, zone: x.zone, name: x.name, set_code: x.set_code || null, collector_number: x.collector_number || null, quantity: x.quantity, type_line: null, cmc: 0, rarity: null, colors: null, image_uri: null, legality: null }); });
+      var xs = xr.data || [], info = {}, xsets = {};
+      xs.forEach(function (x) { if (x.set_code && x.collector_number) (xsets[x.set_code] = xsets[x.set_code] || []).push(x.collector_number); });
+      for (var sk = 0, sn = Object.keys(xsets); sk < sn.length; sk++) {   // dados do catálogo por set + número (mesmo sem arena_id): miniatura, tipo, cor...
+        var ri = await q(sb.from('cards').select('name,set_code,collector_number,type_line,cmc,colors,rarity,image_uri,mana_cost,oracle_id').eq('set_code', sn[sk]).in('collector_number', xsets[sn[sk]]));
+        (ri.data || []).forEach(function (c) { info[c.set_code + ':' + c.collector_number] = c; });
+      }
+      xs.forEach(function (x) {
+        var c = info[x.set_code + ':' + x.collector_number] || {};
+        lines.push({ deck_id: d.deck_id, arena_id: null, extra: true, zone: x.zone, name: x.name, set_code: x.set_code || null, collector_number: x.collector_number || null, quantity: x.quantity,
+          type_line: c.type_line || null, cmc: c.cmc || 0, rarity: c.rarity || null, colors: c.colors || null, image_uri: c.image_uri || null, mana_cost: c.mana_cost || null, oracle_id: c.oracle_id || null, legality: null });
+      });
     } catch (ex) { /* sem cartas extra */ }
     curLines = lines; xbtn.disabled = false;
     body.replaceChildren(deckDetail(d, lines, craft));
@@ -1304,7 +1320,7 @@ function openTransfer(d, lines, onDone) {
       plan.diff = diff;
       fill(res, [
         h('div', { class: 'note' }, plan.total + ' cartas reconhecidas no catálogo (' + planSummary(plan) + ').'),
-        plan.unresolved.length ? listNote('Sem entrada no catálogo (ficam guardadas só pelo nome)', plan.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
+        plan.unresolved.length ? listNote('Sem ID do Arena no catálogo (ficam guardadas pelo nome, set e número)', plan.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
         parsed.bad.length ? listNote('Linhas ignoradas (formato não reconhecido)', parsed.bad, 'warn') : null,
         diff.same ? h('div', { class: 'note warn', text: 'Nenhuma alteração: o deck já está igual ao texto' + (sel.value === 'merge' ? ' (ou o texto não traz nada de novo)' : '') + '. Nada para guardar.' }) : null
       ].concat(diffNodes(diff)).concat([
@@ -1368,7 +1384,7 @@ function openNewDeckImport() {
       if (parsed.rows.some(function (x) { return x.zone === 'command'; })) fsel.value = 'brawl';
       fill(res,
         h('div', { class: 'note' }, r.total + ' cartas reconhecidas (' + planSummary(r) + '). Confirma o nome e o formato e guarda.'),
-        r.unresolved.length ? listNote('Sem entrada no catálogo (ficam guardadas só pelo nome)', r.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
+        r.unresolved.length ? listNote('Sem ID do Arena no catálogo (ficam guardadas pelo nome, set e número)', r.unresolved.map(function (u) { return u.quantity + '× ' + u.label; }), 'bad') : null,
         parsed.bad.length ? listNote('Linhas ignoradas (formato não reconhecido)', parsed.bad, 'warn') : null);
       go.textContent = 'Criar deck';
     } catch (e) { res.replaceChildren(h('div', { class: 'note bad', text: e.message })); plan = null; go.textContent = 'Verificar texto'; }
