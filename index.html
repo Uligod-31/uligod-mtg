@@ -147,7 +147,8 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .cm-top h2 { font-size: 18px; line-height: 1.2; overflow-wrap: anywhere; padding-top: 8px; }
 .cm-x { flex: none; width: 40px; padding: 0; }
 .cm-img { width: min(100%, 340px); aspect-ratio: 488 / 680; margin: 0 auto; border-radius: 4.75% / 3.4%; background: var(--surface-2); overflow: hidden; display: grid; place-items: center; }
-.cm-img img { width: 100%; height: 100%; display: block; }
+.cm-img img { width: 100%; height: 100%; display: block; object-fit: contain; }
+@media (prefers-reduced-motion: no-preference) { .cm-img img.flipin { animation: flipin .28s ease-out; } @keyframes flipin { from { transform: rotateY(90deg); opacity: .3; } to { transform: rotateY(0); opacity: 1; } } }
 .cm-fb { padding: 20px; text-align: center; color: var(--fg-3); font-size: 14px; }
 .cm-sec { display: grid; gap: 6px; }
 .cm-text { white-space: pre-line; font-size: 14px; }
@@ -379,7 +380,7 @@ function nameLinks(names) {
 
 var LEG_SHOW = [['standard', 'Standard'], ['alchemy', 'Alchemy'], ['pioneer', 'Pioneer'], ['historic', 'Historic'], ['timeless', 'Timeless'], ['brawl', 'Brawl']];
 var LEG_TXT = { legal: 'legal', not_legal: 'fora', banned: 'banida', restricted: 'restrita' };
-var CARD_COLS = 'arena_id,oracle_id,name,set_code,collector_number,rarity,mana_cost,type_line,oracle_text,image_uri,is_digital,legalities';
+var CARD_COLS = 'scryfall_id,arena_id,oracle_id,name,set_code,collector_number,rarity,mana_cost,type_line,oracle_text,image_uri,is_digital,legalities';
 var CM = { el: null, list: [], i: 0, back: false, token: 0, prevFocus: null, prevOverflow: '' };
 
 async function fetchCard(item) {
@@ -427,23 +428,58 @@ function cmKey(e) {
   else if (e.key === 'ArrowLeft' && CM.i > 0) { CM.i--; paintCard(); }
   else if (e.key === 'ArrowRight' && CM.i < CM.list.length - 1) { CM.i++; paintCard(); }
 }
+// A base de dados só guarda a face da frente (image_uri). O verso é pedido ao Scryfall por vários caminhos, por ordem.
+function scryId(c) {
+  if (c.scryfall_id) return c.scryfall_id;
+  var m = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jpg/i.exec(c.image_uri || '');
+  return m ? m[1] : null;
+}
+function faceUrls(c, back) {
+  var uri = c && c.image_uri; if (!uri) return [];
+  if (!back) return [imgUrl(uri, 'large'), uri];
+  var id = scryId(c), out = [];
+  if (id) out.push('https://api.scryfall.com/cards/' + id + '?format=image&version=large&face=back');
+  out.push(imgUrl(uri, 'large').replace('/front/', '/back/'), imgUrl(uri, 'normal').replace('/front/', '/back/'));
+  return out;
+}
+// só as cartas de duas faces reais têm verso; aventuras não (a outra metade está no mesmo cartão)
+function maybeTwoFaced(c) {
+  var t = (c && c.type_line) || '';
+  if (!/\s\/\/\s/.test(t)) return false;
+  return !/Adventure/.test(t.split(/\s\/\/\s/)[1] || '');
+}
 function cardView(item, c, loading) {
   var n = CM.list.length;
   var img = h('div', { class: 'cm-img' });
+  var flipBtn = null, tok = CM.token;
   function setFace() {
-    var url = c && c.image_uri ? imgUrl(c.image_uri, 'large') : null;
-    if (url && CM.back) url = url.replace('/front/', '/back/');
-    if (!url) { img.replaceChildren(h('div', { class: 'cm-fb', text: loading ? 'A carregar…' : 'Sem imagem para esta carta.' })); return; }
-    var retried = false;
-    var im = h('img', { src: url, alt: (c.name || '') + (CM.back ? ' (verso)' : ''), decoding: 'async', onerror: function () {
-      if (CM.back) { CM.back = false; toast('Esta carta não tem verso.'); setFace(); return; }
-      if (!retried) { retried = true; im.src = imgUrl(c.image_uri, 'normal'); return; }
-      img.replaceChildren(h('div', { class: 'cm-fb', text: 'Não foi possível carregar a imagem (sem ligação?).' }));
-    } });
-    img.replaceChildren(im);
+    var urls = faceUrls(c, CM.back), k = 0;
+    if (flipBtn) { flipBtn.textContent = CM.back ? 'Ver frente' : 'Virar carta'; flipBtn.setAttribute('aria-pressed', CM.back ? 'true' : 'false'); }
+    if (!urls.length) { img.replaceChildren(h('div', { class: 'cm-fb', text: loading ? 'A carregar…' : 'Sem imagem para esta carta.' })); return; }
+    img.replaceChildren(h('div', { class: 'cm-fb', text: 'A carregar…' }));
+    function tryNext() {
+      if (tok !== CM.token || !CM.el) return;
+      if (k >= urls.length) {
+        if (CM.back) { CM.back = false; toast('Esta carta não tem verso (é uma carta de uma só face com duas metades).'); setFace(); }
+        else img.replaceChildren(h('div', { class: 'cm-fb', text: 'Não foi possível carregar a imagem (sem ligação?).' }));
+        return;
+      }
+      var im = new Image();
+      im.alt = (c.name || '') + (CM.back ? ' (verso)' : '');
+      im.decoding = 'async';
+      im.onload = function () {
+        if (tok !== CM.token || !CM.el) return;
+        if (CM.back || img.dataset.flip) im.className = 'flipin';
+        img.replaceChildren(im);
+      };
+      im.onerror = tryNext;
+      im.src = urls[k++];
+    }
+    tryNext();
   }
+  var dfc = maybeTwoFaced(c);
+  if (dfc) flipBtn = h('button', { class: 'back', type: 'button', text: 'Virar carta', 'aria-pressed': 'false', onclick: function () { CM.back = !CM.back; img.dataset.flip = '1'; setFace(); } });
   setFace();
-  var dfc = c && /\s\/\/\s/.test(c.type_line || '');
   var leg = h('div', { class: 'cm-sec' });
   var own = h('div', { class: 'cm-sec' });
   var title = (c && c.name) || item.name || ('Carta ' + item.arena_id);
@@ -451,7 +487,7 @@ function cardView(item, c, loading) {
     h('div', { class: 'cm-top' }, h('h2', { text: title }),
       h('button', { class: 'back cm-x', type: 'button', 'aria-label': 'Fechar', text: '✕', onclick: function () { closeCard(); } })),
     img,
-    dfc ? h('button', { class: 'back', type: 'button', text: 'Virar carta', onclick: function () { CM.back = !CM.back; setFace(); } }) : null,
+    flipBtn,
     c ? h('div', { class: 'cm-sec' },
       h('div', { class: 'row', style: 'flex-wrap:wrap' }, manaCost(c.mana_cost),
         c.rarity ? h('span', { class: 'chip' }, h('i', { class: 'dot ' + c.rarity }), RARITY[c.rarity] || c.rarity) : null,
@@ -970,8 +1006,13 @@ async function boot() {
   S.session = r.data.session;
   sb.auth.onAuthStateChange(function (_e, session) {
     var was = S.session; S.session = session;
-    if (!session) { closeCard(true); S.decks = null; S.cardCache = {}; render(); return; }
-    if (!was || was.user.id !== session.user.id) startLoad();
+    if (!session) {
+      closeCard(true); S.decks = null; S.cardCache = {}; S.wallet = null; S.events = null; S.bans = {}; S.collCount = null;
+      Array.prototype.forEach.call(document.querySelectorAll('.sheet'), function (s) { s.remove(); });
+      document.body.style.overflow = ''; render(); return;
+    }
+    // fora do callback: chamar o Supabase aqui dentro pode bloquear o pedido de sessão
+    if (!was || was.user.id !== session.user.id) setTimeout(startLoad, 0);
   });
   if (S.session) startLoad(); else render();
 }
