@@ -12,8 +12,9 @@
  * v8–v10: acertos de interface (ver histórico do projeto).
  * v11: verificação em dois passos (MFA), recuperação de palavra-passe, tema claro/escuro, edição de decks, importador de coleção
  *      (JSON do tracker/CSV/texto), faces e cartas relacionadas pelo Scryfall com cache, botão «voltar» do Android, dados offline,
- *      gravação segura do Player.log, ícones «maskable». */
-var CACHE = 'uligod-mtg-shell-v11';
+ *      gravação segura do Player.log, ícones «maskable».
+ * v12: ícones maiores (logótipo a ~72 % do quadrado, como as outras apps) e logótipo no ecrã de entrada. */
+var CACHE = 'uligod-mtg-shell-v12';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {

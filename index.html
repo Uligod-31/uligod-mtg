@@ -192,6 +192,10 @@ nav.tabs button { position: relative; }
 .rel .chip { border: 1px solid var(--line); cursor: pointer; font: inherit; font-size: 12.5px; min-height: 32px; }
 .qr { width: min(100%, 220px); aspect-ratio: 1; margin: 0 auto; background: #fff; border-radius: 10px; padding: 8px; display: block; }
 .secret { font: 500 13px var(--mono); overflow-wrap: anywhere; text-align: center; user-select: all; }
+.brand-head { display: grid; justify-items: center; gap: 14px; text-align: center; }
+.brand-head h1 { font-size: 26px; }
+.brand-head .logo { width: 112px; height: 112px; border-radius: 24%; display: block; box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
+.brand-head p { margin: 0; max-width: 34ch; }
 .code-in { text-align: center; font: 600 22px var(--mono); letter-spacing: .3em; }
 @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translateY(14px); opacity: .6; } } .cm-box { animation: pop .14s ease-out; } @keyframes pop { from { transform: scale(.97); opacity: .6; } } }
 </style>
@@ -920,6 +924,12 @@ function deckProblems(d) {
 function hasHardProblem(d) { return deckProblems(d).some(function (x) { return x.k === 'bad'; }); }
 
 /* ---------- ecrã de entrada ---------- */
+// Cabeçalho dos ecrãs de entrada: logótipo da app (o mesmo do ícone), nome e, opcionalmente, uma frase
+function brandHead(sub) {
+  return h('div', { class: 'brand-head' },
+    h('img', { class: 'logo', src: 'icon-192.png', alt: '', width: 112, height: 112, decoding: 'async', onerror: function (e) { e.target.remove(); } }),
+    h('h1', { text: APP_NAME }), sub ? h('p', { class: 'muted', text: sub }) : null);
+}
 function authMsg(m) {   // mensagens do Supabase em português
   m = String(m || '');
   var map = [[/invalid login credentials/i, 'Email ou palavra-passe incorretos.'], [/email not confirmed/i, 'Confirma primeiro o email (vê a tua caixa de correio).'],
@@ -950,7 +960,7 @@ function renderMfaVerify() {
     h('p', { class: 'muted', text: 'Abre a app de autenticação (Google Authenticator, Authy…) e escreve o código de 6 dígitos de «Üligod\'s MTG».' }),
     code, err, submit,
     h('button', { class: 'btn ghost', type: 'button', text: 'Sair', onclick: function () { sb.auth.signOut(); } }));
-  $app.replaceChildren(h('div', { class: 'wrap auth' }, h('div', { class: 'stack' }, h('h1', { text: APP_NAME, style: 'font-size:26px' }), h('div', { class: 'card' }, h('h2', { text: 'Verificação em dois passos' }), form))));
+  $app.replaceChildren(h('div', { class: 'wrap auth' }, h('div', { class: 'stack' }, brandHead(), h('div', { class: 'card' }, h('h2', { text: 'Verificação em dois passos' }), form))));
   code.focus();
 }
 // Nova palavra-passe (ligação do email de recuperação)
@@ -967,7 +977,7 @@ function renderRecovery() {
       toast('Palavra-passe atualizada.'); afterAuth();
     } catch (x) { err.textContent = authMsg(x.message); err.hidden = false; }
   } }, h('label', null, 'Nova palavra-passe (mínimo 8 caracteres)', p1), h('label', null, 'Repete a nova palavra-passe', p2), err, h('button', { class: 'btn', type: 'submit', text: 'Guardar' }));
-  $app.replaceChildren(h('div', { class: 'wrap auth' }, h('div', { class: 'stack' }, h('h1', { text: APP_NAME, style: 'font-size:26px' }), h('div', { class: 'card' }, h('h2', { text: 'Nova palavra-passe' }), form))));
+  $app.replaceChildren(h('div', { class: 'wrap auth' }, h('div', { class: 'stack' }, brandHead(), h('div', { class: 'card' }, h('h2', { text: 'Nova palavra-passe' }), form))));
 }
 // Decide o que mostrar depois de haver sessão: o código do segundo passo (se a conta o tem) ou os dados
 async function afterAuth() {
@@ -1064,7 +1074,7 @@ function renderAuth(msg) {
     } }));
   $app.replaceChildren(h('div', { class: 'wrap auth' },
     h('div', { class: 'stack' },
-      h('div', null, h('h1', { text: APP_NAME, style: 'font-size:26px' }), h('p', { class: 'muted', text: 'Standard e Alchemy no MTG Arena. Os teus decks, a tua carteira e os avisos de banlist e rotação.' })),
+      brandHead('Standard e Alchemy no MTG Arena. Os teus decks, a tua carteira e os avisos de banlist e rotação.'),
       h('div', { class: 'card' }, title, form),
       msg ? h('div', { class: 'note', text: msg }) : null,
       h('div', { class: 'who', style: 'justify-content:center' }, themeBtn()))));
