@@ -8,9 +8,13 @@
  * v4: novo nome da app (Üligod's MTG Deck Builder) e janela da carta revista; força a renovação da cache.
  * v5: virar carta decidido pelos dados reais do Scryfall; botão Importar/Exportar (formato do Arena) em cada deck. Força a renovação da cache.
  * v6: Importar/Exportar revisto (pré-visualização das diferenças, verificação depois de guardar, nunca apaga cartas por identificar).
- * v7: botão X mais pequeno (20px, com zona de toque maior). */
-var CACHE = 'uligod-mtg-shell-v10';
-var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+ * v7: botão X mais pequeno (20px, com zona de toque maior).
+ * v8–v10: acertos de interface (ver histórico do projeto).
+ * v11: verificação em dois passos (MFA), recuperação de palavra-passe, tema claro/escuro, edição de decks, importador de coleção
+ *      (JSON do tracker/CSV/texto), faces e cartas relacionadas pelo Scryfall com cache, botão «voltar» do Android, dados offline,
+ *      gravação segura do Player.log, ícones «maskable». */
+var CACHE = 'uligod-mtg-shell-v11';
+var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(

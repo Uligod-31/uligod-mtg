@@ -12,6 +12,15 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Üligod's MTG Deck Builder</title>
+<script>
+/* Tema antes de pintar (evita o «flash»): escuro por defeito, claro só se o utilizador o escolheu. */
+(function () {
+  var t = 'dark';
+  try { var s = localStorage.getItem('uligod-theme'); if (s === 'light' || s === 'dark') t = s; } catch (e) { /* sem armazenamento: fica escuro */ }
+  document.documentElement.setAttribute('data-theme', t);
+  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'light' ? '#eef1f4' : '#14181f');
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
@@ -27,16 +36,7 @@
   --font-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f1318; --surface: #171c23; --surface-2: #202731; --line: #2b3440;
-    --fg: #e8ecf0; --fg-2: #aab3bd; --fg-3: #818b97;
-    --accent: #3fb8a5; --accent-fg: #06201b; --accent-soft: #15332e;
-    --ok: #55c783; --ok-soft: #14301f; --warn: #e2ac45; --warn-soft: #37290c; --bad: #f0786f; --bad-soft: #3a1815;
-    --r-common: #8a94a0; --r-uncommon: #6fa8cc; --r-rare: #d6a437; --r-mythic: #e0714a;
-    color-scheme: dark;
-  }
-}
+/* Tema: escuro por defeito; o botão no topo alterna e a escolha fica guardada (ver script no início). */
 :root[data-theme="dark"] {
   --bg: #0f1318; --surface: #171c23; --surface-2: #202731; --line: #2b3440;
   --fg: #e8ecf0; --fg-2: #aab3bd; --fg-3: #818b97;
@@ -171,6 +171,28 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .tx-row > * { flex: 1 1 140px; }
 .sheet .bar { flex-wrap: wrap; }
 .sheet .bar .xbtn { margin-left: auto; font-size: 13px; }
+/* botões do topo, selo nos Alertas, edição de decks */
+.who .tbtn { min-width: 36px; min-height: 36px; padding: 4px 8px; line-height: 1; font-size: 16px; }
+nav.tabs button { position: relative; }
+.badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--bad); color: #fff; font: 600 10px/16px var(--mono); text-align: center; }
+.banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; }
+.step { display: inline-flex; align-items: center; gap: 2px; }
+.step button { width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font: 600 20px/1 var(--mono); color: var(--fg); }
+.step button.del { color: var(--bad); }
+.cl.edit { grid-template-columns: 28px 36px 1fr auto; }
+.add-res { display: grid; gap: 6px; }
+.add-res .cl { grid-template-columns: 36px 1fr auto; }
+.tools { display: grid; gap: 10px; }
+.tools .row > * { flex: 1 1 0; }
+.pips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pips .chip { gap: 6px; }
+.half { border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 2px; }
+.half p { margin: 0; white-space: pre-line; font-size: 13.5px; }
+.rel { display: flex; flex-wrap: wrap; gap: 6px; }
+.rel .chip { border: 1px solid var(--line); cursor: pointer; font: inherit; font-size: 12.5px; min-height: 32px; }
+.qr { width: min(100%, 220px); aspect-ratio: 1; margin: 0 auto; background: #fff; border-radius: 10px; padding: 8px; display: block; }
+.secret { font: 500 13px var(--mono); overflow-wrap: anywhere; text-align: center; user-select: all; }
+.code-in { text-align: center; font: 600 22px var(--mono); letter-spacing: .3em; }
 @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translateY(14px); opacity: .6; } } .cm-box { animation: pop .14s ease-out; } @keyframes pop { from { transform: scale(.97); opacity: .6; } } }
 </style>
 </head>
@@ -335,7 +357,8 @@ var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 var $app = document.getElementById('app');
-var S = { session: null, tab: 'home', decks: null, wallet: null, events: null, collCount: null, fmt: 'all', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {} };
+var S = { session: null, tab: 'home', decks: null, wallet: null, events: null, collCount: null, fmt: 'all', sort: 'name', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {},
+  offline: false, snapAt: null, needMfa: false, recovery: /type=recovery/.test(location.hash) };
 
 /* ---------- utilitários ---------- */
 function h(tag, attrs) {
@@ -376,6 +399,137 @@ function sentence(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
 var FORMAT_LABEL = { standard: 'Standard', alchemy: 'Alchemy', historic: 'Historic', pioneer: 'Pioneer', timeless: 'Timeless', brawl: 'Brawl', standard_brawl: 'Standard Brawl', competitive_brawl: 'Brawl competitivo', custom: 'Outro' };
 var KIND_LABEL = { banlist: 'Banlist', set_release: 'Novo set', event: 'Evento', rotation: 'Rotação', format_sunset: 'Fim de formato' };
 var RARITY = { common: 'Comum', uncommon: 'Incomum', rare: 'Rara', mythic: 'Mítica' };
+
+/* ---------- armazenamento local (IndexedDB): última cópia dos dados e cache do Scryfall ---------- */
+var KV = (function () {
+  var dbp = null;
+  function open() {
+    if (!dbp) dbp = new Promise(function (res, rej) {
+      try {
+        var r = indexedDB.open('uligod-mtg', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+        r.onsuccess = function () { res(r.result); };
+        r.onerror = function () { rej(r.error); };
+      } catch (e) { rej(e); }
+    });
+    return dbp;
+  }
+  function tx(mode, fn) {
+    return open().then(function (db) {
+      return new Promise(function (res, rej) {
+        var t = db.transaction('kv', mode), rq = fn(t.objectStore('kv'));
+        t.oncomplete = function () { res(rq && rq.result); };
+        t.onerror = t.onabort = function () { rej(t.error); };
+      });
+    });
+  }
+  return {   // nunca lançam erro: sem IndexedDB a app funciona na mesma, só sem cache
+    get: function (k) { return tx('readonly', function (s) { return s.get(k); }).catch(function () { return undefined; }); },
+    set: function (k, v) { return tx('readwrite', function (s) { return s.put(v, k); }).catch(function () { /* ignora */ }); },
+    del: function (k) { return tx('readwrite', function (s) { return s.delete(k); }).catch(function () { /* ignora */ }); }
+  };
+})();
+
+/* ---------- ecrãs sobrepostos e botão «voltar» (Android): cada folha/janela ocupa uma entrada do histórico ---------- */
+var OV = { stack: [], pending: 0, skip: 0, t: null };
+function ovPush(fn) {
+  OV.stack.push(fn);
+  if (OV.pending > 0) { OV.pending--; return; }      // fechou-se um ecrã há instantes: reaproveita a entrada do histórico
+  try { history.pushState({ ov: 1 }, ''); } catch (e) { /* ignora */ }
+}
+function ovRelease(fn) {
+  var i = OV.stack.lastIndexOf(fn); if (i < 0) return;   // já tirado pelo botão «voltar»
+  OV.stack.splice(i, 1); OV.pending++;
+  clearTimeout(OV.t); OV.t = setTimeout(ovFlush, 0);
+}
+function ovFlush() {
+  if (!OV.pending) return;
+  var n = OV.pending; OV.pending = 0; OV.skip++;
+  try { history.go(-n); } catch (e) { OV.skip = 0; }
+}
+function ovReset() { OV.stack.length = 0; OV.pending = 0; }
+window.addEventListener('popstate', function () {
+  if (OV.skip > 0) { OV.skip--; return; }
+  var fn = OV.stack.pop(); if (fn) fn();
+});
+
+/* ---------- tema ---------- */
+function curTheme() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('uligod-theme', t); } catch (e) { /* ignora */ }
+  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'light' ? '#eef1f4' : '#14181f');
+}
+function themeBtn() {
+  var b = h('button', { type: 'button', class: 'tbtn', onclick: function () { setTheme(curTheme() === 'dark' ? 'light' : 'dark'); paint(); } });
+  function paint() {
+    var dark = curTheme() === 'dark';
+    b.textContent = dark ? '☀' : '☾';
+    b.setAttribute('aria-label', dark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
+    b.title = dark ? 'Tema claro' : 'Tema escuro';
+  }
+  paint(); return b;
+}
+
+/* O Arena escreve alguns sets com outro código que o Scryfall (ex.: Alchemy: Reality Fracture é «Y26» no Arena e «yfra» no Scryfall). */
+// Y25/Y26 são códigos «anuais» do Arena que juntam vários sets Alchemy; aqui só se mapeia o mais provável, e o nome confirma (ver fetchCard e resolveRows).
+var SET_IN = { dar: 'dom', y26: 'yfra', y25: 'ydft' };      // Arena -> catálogo/Scryfall
+var SET_OUT = { dom: 'DAR', yfra: 'Y26', ydft: 'Y25', yecl: 'Y26', ysos: 'Y26', ytdm: 'Y25', yeoe: 'Y25' };     // e o inverso, ao exportar
+function mapSet(s) { s = String(s || '').toLowerCase(); return SET_IN[s] || s; }
+
+/* ---------- Scryfall (imagens, faces, cartas relacionadas) com cache local ---------- */
+var SC = { mem: {}, busy: {} };
+function slimScry(j) {
+  function iu(u) { return u ? { small: u.small, normal: u.normal, large: u.large } : undefined; }
+  return {
+    id: j.id, oracle_id: j.oracle_id, arena_id: j.arena_id, name: j.name, layout: j.layout, type_line: j.type_line, mana_cost: j.mana_cost, oracle_text: j.oracle_text,
+    rarity: j.rarity, set: j.set, collector_number: j.collector_number, digital: j.digital, legalities: j.legalities, image_uris: iu(j.image_uris),
+    card_faces: (j.card_faces || []).map(function (f) { return { name: f.name, mana_cost: f.mana_cost, type_line: f.type_line, oracle_text: f.oracle_text, image_uris: iu(f.image_uris) }; }),
+    all_parts: (j.all_parts || []).map(function (p) { return { id: p.id, component: p.component, name: p.name, type_line: p.type_line }; })
+  };
+}
+function fetchScry(url) {   // 404 = não existe (null, sem insistir); falha de rede = tenta mais uma vez
+  var n = 0;
+  function go() {
+    return fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) {
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error('http ' + r.status);
+      return r.json();
+    }).catch(function () {
+      if (n++ < 1) return new Promise(function (ok) { setTimeout(ok, 700); }).then(go);
+      return undefined;   // undefined = não foi possível saber (≠ null = não existe)
+    });
+  }
+  return go();
+}
+// Devolve o JSON (reduzido) da carta; null se o Scryfall não a conhece; undefined se não deu para perguntar.
+function scryGet(key, url) {
+  if (SC.mem[key]) return Promise.resolve(SC.mem[key]);
+  if (SC.busy[key]) return SC.busy[key];
+  SC.busy[key] = KV.get('sc:' + key).then(function (hit) {
+    if (hit && hit.j && hit.t > Date.now() - 14 * 864e5) { SC.mem[key] = hit.j; return hit.j; }
+    return fetchScry(url).then(function (j) {
+      if (j) { j = slimScry(j); SC.mem[key] = j; KV.set('sc:' + key, { t: Date.now(), j: j }); return j; }
+      return j === undefined && hit && hit.j ? hit.j : j;   // sem rede: melhor uma cópia antiga que nada
+    });
+  }).then(function (j) { delete SC.busy[key]; return j; });
+  return SC.busy[key];
+}
+function scryById(id) { return scryGet('id:' + id, 'https://api.scryfall.com/cards/' + encodeURIComponent(id)); }
+function scryBySetNum(set, num) { set = mapSet(set); return scryGet('sn:' + set + ':' + num, 'https://api.scryfall.com/cards/' + encodeURIComponent(set) + '/' + encodeURIComponent(num)); }
+async function scryByName(name) {
+  var front = String(name || '').split(' // ')[0];
+  var j = await scryGet('nx:' + front.toLowerCase(), 'https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(front));
+  if (j === null) j = await scryGet('nf:' + front.toLowerCase(), 'https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent(front));
+  return j;
+}
+// Linha no formato do catálogo (cards) a partir do JSON do Scryfall, para cartas que a base de dados ainda não tem
+function rowFromScry(j) {
+  var f = j.card_faces || [], f0 = f[0] || {}, iu = j.image_uris || f0.image_uris || {};
+  return { scryfall_id: j.id, arena_id: j.arena_id != null ? j.arena_id : null, oracle_id: j.oracle_id, name: j.name, set_code: j.set, collector_number: j.collector_number, rarity: j.rarity,
+    mana_cost: j.mana_cost || f0.mana_cost || null, type_line: j.type_line || '', is_digital: !!j.digital, legalities: j.legalities || {}, image_uri: iu.normal || iu.large || iu.small || null,
+    oracle_text: j.oracle_text || f.map(function (x) { return x.oracle_text || ''; }).join('\n//\n'), _remote: true };
+}
 
 function icon(name) {
   var p = {
@@ -433,13 +587,20 @@ var CARD_COLS = 'scryfall_id,arena_id,oracle_id,name,set_code,collector_number,r
 var CM = { el: null, list: [], i: 0, back: false, token: 0, prevFocus: null, prevOverflow: '' };
 
 async function fetchCard(item) {
-  var key = item.arena_id != null ? 'a' + item.arena_id : (item.set_code && item.collector_number ? 's' + item.set_code + ':' + item.collector_number : 'n' + item.name);
+  var key = item.sid ? 'i' + item.sid : item.arena_id != null ? 'a' + item.arena_id : (item.set_code && item.collector_number ? 's' + mapSet(item.set_code) + ':' + item.collector_number : 'n' + item.name);
   if (S.cardCache[key]) return S.cardCache[key];
   var row = null;
+  if (item.sid) {   // carta relacionada (token, outra metade…): vem do Scryfall; se também estiver no catálogo, usa a do catálogo
+    var rc = await q(sb.from('cards').select(CARD_COLS).eq('scryfall_id', item.sid).maybeSingle());
+    row = rc.data;
+    if (!row) { var js = await scryById(item.sid); if (js) row = rowFromScry(js); }
+    if (row) S.cardCache[key] = row;
+    return row;
+  }
   if (item.arena_id != null) {
     row = (await q(sb.from('cards').select(CARD_COLS).eq('arena_id', item.arena_id).maybeSingle())).data;
   } else if (item.set_code && item.collector_number) {   // carta «extra»: o Arena escreve o nome à sua maneira, mas set + número são exatos
-    var rs0 = await q(sb.from('cards').select(CARD_COLS).eq('set_code', item.set_code).eq('collector_number', item.collector_number).limit(1));
+    var rs0 = await q(sb.from('cards').select(CARD_COLS).eq('set_code', mapSet(item.set_code)).eq('collector_number', item.collector_number).limit(1));
     row = rs0.data && rs0.data[0];
   }
   if (!row && item.arena_id == null && item.name) {
@@ -457,23 +618,36 @@ async function fetchCard(item) {
       }
     }
   }
+  if (!row) {   // não está no catálogo (set novo, carta sem ID do Arena…): pergunta ao Scryfall por set + número e, em último caso, pelo nome
+    var js2 = null;
+    if (item.set_code && item.collector_number) js2 = await scryBySetNum(item.set_code, item.collector_number);
+    if (js2 && item.name && !nameMatches(item.name, js2.name)) js2 = null;   // o Arena reparte os números dos sets Alchemy à sua maneira: set + número só vale se o nome bate
+    if (!js2 && item.name) js2 = await scryByName(item.name);
+    if (js2) row = rowFromScry(js2);
+  }
   if (row) S.cardCache[key] = row;
   return row;
 }
-function openCard(list, i) {
-  closeCard(true);
-  CM.list = list; CM.i = i; CM.prevFocus = document.activeElement; CM.prevOverflow = document.body.style.overflow;
+// ret: de onde veio (ao abrir uma carta relacionada), para poder voltar à carta anterior
+function openCard(list, i, ret) {
+  var had = !!CM.el;
+  closeCard(true, true);
+  CM.list = list; CM.i = i; CM.ret = ret || null; CM.prevFocus = had ? CM.prevFocus : document.activeElement; CM.prevOverflow = had ? CM.prevOverflow : document.body.style.overflow;
   document.body.style.overflow = 'hidden';
   var el = h('div', { class: 'cm', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Detalhe da carta', onclick: function (e) { if (e.target === el) closeCard(); } });
   CM.el = el; document.body.appendChild(el);
   document.addEventListener('keydown', cmKey);
+  if (!had) ovPush(cmClose);
   paintCard();
 }
-function closeCard(silent) {
+function cmClose() { closeCard(); }
+function closeCard(silent, keepHistory) {
   if (!CM.el) return;
   CM.token++; CM.el.remove(); CM.el = null;
-  document.body.style.overflow = CM.prevOverflow;
   document.removeEventListener('keydown', cmKey);
+  if (keepHistory) return;   // vai abrir-se outra carta já a seguir: mantém o estado e a entrada do histórico
+  document.body.style.overflow = CM.prevOverflow;
+  ovRelease(cmClose);
   if (!silent && CM.prevFocus && document.contains(CM.prevFocus)) CM.prevFocus.focus();
 }
 function cmKey(e) {
@@ -487,26 +661,42 @@ function scryId(c) {
   var m = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jpg/i.exec(c.image_uri || '');
   return m ? m[1] : null;
 }
-var FACE = {}, BACK = {};   // FACE: scryfall_id -> pedido ao Scryfall (cache); BACK: scryfall_id -> imagem do verso
-/* Pergunta ao Scryfall como a carta é realmente feita. Só há verso quando as DUAS faces têm imagem própria
- * (transformar, modal/MDFC, batalha, token de duas faces, carta reversível). Aventuras, presságios, salas, cartas
- * divididas, «prepare», etc. têm uma só imagem e não têm verso. Devolve {layout, back} ou null se não foi possível saber. */
-function faceInfo(c) {
+var FACE = {}, BACK = {};   // FACE: chave da carta -> informação das faces (cache); BACK: scryfall_id -> imagem do verso
+var REL_LABEL = { token: 'Token', meld_part: 'Fusão', meld_result: 'Resultado da fusão', combo_piece: 'Peça relacionada' };
+/* O Scryfall diz como a carta é realmente feita. Só há verso quando as DUAS faces têm imagem própria (transformar, modal/MDFC,
+ * batalha, token de duas faces, reversível). Aventuras, presságios, salas, cartas divididas… têm uma só imagem: aí mostramos o
+ * texto de cada metade («halves»). Os tokens e outras cartas ligadas vêm em «all_parts» («parts»). */
+function infoFromScry(j) {
+  var f = j.card_faces || [];
+  var sep = f.length > 1 && f.every(function (x) { return x.image_uris; });
+  function face(x) { return { name: x.name, cost: x.mana_cost, type: x.type_line, text: x.oracle_text }; }
+  return {
+    layout: j.layout || '',
+    back: sep ? (f[1].image_uris.large || f[1].image_uris.normal || null) : null,
+    halves: f.length > 1 && !sep ? f.map(face) : [],
+    parts: (j.all_parts || []).filter(function (p, i, a) {   // só tokens e peças de fusão («combo_piece» traz cartas de lista/checklist e a própria carta)
+      return p.id !== j.id && /^(token|meld_part|meld_result)$/.test(p.component) && a.findIndex(function (o) { return o.name === p.name && o.component === p.component; }) === i;
+    }).map(function (p) { return { id: p.id, name: p.name, type: p.type_line, comp: p.component }; })
+  };
+}
+function cardScry(c) {   // JSON do Scryfall desta carta: por id; senão por set + número; senão pelo nome
   var id = scryId(c);
-  if (!id) return Promise.resolve(null);
-  if (!FACE[id]) {
-    FACE[id] = fetch('https://api.scryfall.com/cards/' + id, { headers: { Accept: 'application/json' } })
-      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
-      .then(function (j) {
-        var f = j.card_faces || [];
-        var u0 = f[0] && f[0].image_uris, u1 = f[1] && f[1].image_uris;
-        var back = (f.length > 1 && u0 && u1) ? (u1.large || u1.normal || null) : null;
-        if (back) BACK[id] = back;
-        return { layout: j.layout || '', back: back };
-      })
-      .catch(function () { delete FACE[id]; return null; });
+  if (id) return scryById(id);
+  if (c.set_code && c.collector_number) return scryBySetNum(c.set_code, c.collector_number);
+  return Promise.resolve(undefined);
+}
+// Devolve a informação das faces, ou null se não foi possível saber (sem rede): aí vale o plano B (faceKind)
+function faceInfo(c) {
+  var id = scryId(c), key = id || (c.set_code + ':' + c.collector_number);
+  if (!FACE[key]) {
+    FACE[key] = cardScry(c).then(function (j) {
+      if (!j) { delete FACE[key]; return null; }
+      var info = infoFromScry(j);
+      if (info.back && id) BACK[id] = info.back;
+      return info;
+    });
   }
-  return FACE[id];
+  return FACE[key];
 }
 function faceUrls(c, back) {
   var uri = c && c.image_uri; if (!uri) return [];
@@ -582,15 +772,27 @@ function cardView(item, c, loading) {
   // Qualquer carta com «//» pode ter duas faces. O Scryfall é quem decide (faceInfo); a heurística faceKind só serve
   // para mostrar o botão logo (casos 'yes') e como plano B se o Scryfall não responder.
   var kind = c ? faceKind(c) : 'no';
-  var twoPart = !!(c && (/\s\/\/\s/.test(c.type_line || '') || /\s\/\/\s/.test(c.name || '')));
-  if (twoPart) {
+  var ex = h('div', { class: 'cm-sec' });   // metades (aventura, dividida…) e cartas relacionadas (tokens…)
+  function fillExtra(info) {
+    var parts = [];
+    if (info.halves.length) parts.push(h('h3', { text: 'Metades da carta' }), info.halves.map(function (x) {
+      return h('div', { class: 'half' }, h('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' }, h('b', { text: x.name }), manaCost(x.cost)),
+        x.type ? h('div', { class: 'muted small', text: x.type }) : null, x.text ? h('p', { text: x.text }) : null);
+    }));
+    if (info.parts.length) parts.push(h('h3', { text: 'Cartas relacionadas' }), h('div', { class: 'rel' }, info.parts.map(function (p) {
+      return h('button', { class: 'chip', type: 'button', title: p.type || '', text: (REL_LABEL[p.comp] || 'Relacionada') + ': ' + p.name,
+        onclick: function () { openCard([{ name: p.name, sid: p.id }], 0, { list: CM.list, i: CM.i }); } });
+    })));
+    fill.apply(null, [ex].concat(parts));
+  }
+  if (c) {
     flipBtn = h('button', { class: 'back', type: 'button', text: 'Virar carta', 'aria-pressed': 'false', hidden: kind !== 'yes', onclick: function () { CM.back = !CM.back; img.dataset.flip = '1'; setFace(); } });
     faceInfo(c).then(function (info) {
-      if (tok !== CM.token || !CM.el || !flipBtn) return;
-      if (info) { if (info.back) flipBtn.hidden = false; else dropFlip(); return; }
+      if (tok !== CM.token || !CM.el) return;
+      if (info) { if (info.back) { if (flipBtn) flipBtn.hidden = false; } else dropFlip(); fillExtra(info); return; }
       // sem resposta do Scryfall: plano B pela heurística e pelo teste das imagens
       if (kind === 'probe') backExists(c, tok).then(function (ok) { if (tok !== CM.token || !CM.el) return; if (ok && flipBtn) flipBtn.hidden = false; else dropFlip(); });
-      else if (kind === 'no') dropFlip();
+      else if (kind !== 'yes') dropFlip();
     });
   }
   setFace();
@@ -610,7 +812,8 @@ function cardView(item, c, loading) {
     h('button', { class: 'back cm-x fl', type: 'button', 'aria-label': 'Fechar ' + title, text: '✕', onclick: function () { closeCard(); } }),
     img,
     info,
-    leg, own,
+    ex, leg, own,
+    CM.ret ? h('div', { class: 'cm-nav' }, h('button', { class: 'back', type: 'button', text: '‹ Voltar à carta', onclick: function () { openCard(CM.ret.list, CM.ret.i); } }), h('span'), h('span')) :
     n > 1 ? h('div', { class: 'cm-nav' },
       h('button', { class: 'back', type: 'button', text: '‹ Anterior', disabled: CM.i === 0, onclick: function () { CM.i--; paintCard(); } }),
       h('span', { class: 'muted small num', text: (CM.i + 1) + ' / ' + n }),
@@ -658,7 +861,7 @@ async function paintCard() {
     CM.el.replaceChildren(v2.box);
     var x2 = v2.box.querySelector('.cm-x'); if (x2) x2.focus({ preventScroll: true });
     fillCardExtras(v2, item, full);
-    if (!full) v2.box.querySelector('.cm-img').replaceChildren(h('div', { class: 'cm-fb', text: 'Carta não encontrada no catálogo.' }));
+    if (!full) v2.box.querySelector('.cm-img').replaceChildren(h('div', { class: 'cm-fb', text: 'Carta não encontrada no catálogo nem no Scryfall (ou sem ligação).' }));
   } catch (e) {
     if (tok === CM.token && CM.el) toast('Não foi possível carregar a carta: ' + e.message);
   }
@@ -670,15 +873,32 @@ async function q(promise) {
   if (r.error) throw new Error(r.error.message);
   return r;
 }
+function isNetErr(e) { return (typeof navigator !== 'undefined' && navigator.onLine === false) || /fetch|network|load failed|timeout/i.test(String(e && e.message)); }
+// Carrega tudo; guarda uma cópia no aparelho. Sem ligação, mostra a última cópia (só leitura) em vez de um erro.
 async function loadAll() {
-  var res = await Promise.all([
-    q(sb.from('deck_overview').select('*').order('name')),
-    q(sb.from('user_wallet').select('*').maybeSingle()),
-    q(sb.from('calendar_events').select('*').order('event_date')),
-    q(sb.from('user_collection').select('arena_id', { count: 'exact', head: true }))
-  ]);
-  S.decks = res[0].data || []; S.wallet = res[1].data; S.events = res[2].data || []; S.collCount = res[3].count || 0;
+  try {
+    var res = await Promise.all([
+      q(sb.from('deck_overview').select('*').order('name')),
+      q(sb.from('user_wallet').select('*').maybeSingle()),
+      q(sb.from('calendar_events').select('*').order('event_date')),
+      q(sb.from('user_collection').select('arena_id', { count: 'exact', head: true }))
+    ]);
+    S.decks = res[0].data || []; S.wallet = res[1].data; S.events = res[2].data || []; S.collCount = res[3].count || 0;
+    S.offline = false; S.snapAt = null;
+    KV.set('snap', { uid: S.session.user.id, t: Date.now(), decks: S.decks, wallet: S.wallet, events: S.events, collCount: S.collCount });
+  } catch (e) {
+    var snap = isNetErr(e) && S.session ? await KV.get('snap') : null;
+    if (!snap || snap.uid !== S.session.user.id) throw e;
+    S.decks = snap.decks; S.wallet = snap.wallet; S.events = snap.events; S.collCount = snap.collCount; S.offline = true; S.snapAt = snap.t;
+  }
 }
+function offlineNote() {
+  if (!S.offline) return null;
+  return h('div', { class: 'note warn banner' }, h('span', { text: 'Sem ligação: a mostrar os dados guardados em ' + new Date(S.snapAt).toLocaleString('pt-PT') + ' (só leitura).' }),
+    h('button', { class: 'back', type: 'button', text: 'Tentar de novo', onclick: function () { startLoad(); } }));
+}
+// Para gravações: não deixa escrever sem ligação (a cópia guardada é só para ler)
+function needOnline() { if (S.offline) { toast('Sem ligação: não dá para guardar alterações agora.'); return false; } return true; }
 async function loadBans(fmt) {
   if (S.bans[fmt]) return;
   var r = await q(sb.from('banlist_entries').select('card_name,status,note,verified_on,source_url').eq('format_code', fmt).order('card_name'));
@@ -700,6 +920,107 @@ function deckProblems(d) {
 function hasHardProblem(d) { return deckProblems(d).some(function (x) { return x.k === 'bad'; }); }
 
 /* ---------- ecrã de entrada ---------- */
+function authMsg(m) {   // mensagens do Supabase em português
+  m = String(m || '');
+  var map = [[/invalid login credentials/i, 'Email ou palavra-passe incorretos.'], [/email not confirmed/i, 'Confirma primeiro o email (vê a tua caixa de correio).'],
+    [/signups? not allowed|signup is disabled/i, 'Os registos novos estão desativados.'], [/rate limit|too many/i, 'Demasiados pedidos seguidos. Espera um pouco e tenta de novo.'],
+    [/at least \d+ char/i, 'A palavra-passe tem de ter pelo menos 8 caracteres.'], [/weak|pwned|compromised/i, 'Essa palavra-passe é fraca ou já apareceu em fugas de dados. Escolhe outra.'],
+    [/invalid totp|invalid code|code .*(invalid|expired)/i, 'Código inválido ou expirado. Tenta com o código atual da app.'], [/same password/i, 'A nova palavra-passe tem de ser diferente da atual.'],
+    [/failed to fetch|network|load failed/i, 'Sem ligação à internet.']];
+  for (var i = 0; i < map.length; i++) if (map[i][0].test(m)) return map[i][1];
+  return m;
+}
+// Código de 6 dígitos da app de autenticação (segundo passo do login)
+function renderMfaVerify() {
+  var code = h('input', { class: 'code-in', type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, pattern: '[0-9]{6}', 'aria-label': 'Código de 6 dígitos', required: true });
+  var err = h('div', { class: 'note bad', hidden: true, role: 'alert' });
+  var submit = h('button', { class: 'btn', type: 'submit', text: 'Confirmar' });
+  var form = h('form', { class: 'stack', onsubmit: async function (e) {
+    e.preventDefault(); err.hidden = true; submit.disabled = true;
+    try {
+      var lf = await sb.auth.mfa.listFactors(); if (lf.error) throw lf.error;
+      var f = (lf.data.totp || []).filter(function (x) { return x.status === 'verified'; })[0];
+      if (!f) throw new Error('Não encontrei o autenticador desta conta.');
+      var r = await sb.auth.mfa.challengeAndVerify({ factorId: f.id, code: code.value.replace(/\s+/g, '') });
+      if (r.error) throw r.error;
+      S.needMfa = false; startLoad();
+    } catch (x) { err.textContent = authMsg(x.message); err.hidden = false; code.select(); }
+    finally { submit.disabled = false; }
+  } },
+    h('p', { class: 'muted', text: 'Abre a app de autenticação (Google Authenticator, Authy…) e escreve o código de 6 dígitos de «Üligod\'s MTG».' }),
+    code, err, submit,
+    h('button', { class: 'btn ghost', type: 'button', text: 'Sair', onclick: function () { sb.auth.signOut(); } }));
+  $app.replaceChildren(h('div', { class: 'wrap auth' }, h('div', { class: 'stack' }, h('h1', { text: APP_NAME, style: 'font-size:26px' }), h('div', { class: 'card' }, h('h2', { text: 'Verificação em dois passos' }), form))));
+  code.focus();
+}
+// Nova palavra-passe (ligação do email de recuperação)
+function renderRecovery() {
+  var p1 = h('input', { type: 'password', autocomplete: 'new-password', required: true, minlength: 8 });
+  var p2 = h('input', { type: 'password', autocomplete: 'new-password', required: true, minlength: 8 });
+  var err = h('div', { class: 'note bad', hidden: true, role: 'alert' });
+  var form = h('form', { class: 'stack', onsubmit: async function (e) {
+    e.preventDefault(); err.hidden = true;
+    if (p1.value !== p2.value) { err.textContent = 'As duas palavras-passe não são iguais.'; err.hidden = false; return; }
+    try {
+      var r = await sb.auth.updateUser({ password: p1.value }); if (r.error) throw r.error;
+      S.recovery = false; try { history.replaceState(null, '', location.pathname); } catch (x) { /* ignora */ }
+      toast('Palavra-passe atualizada.'); afterAuth();
+    } catch (x) { err.textContent = authMsg(x.message); err.hidden = false; }
+  } }, h('label', null, 'Nova palavra-passe (mínimo 8 caracteres)', p1), h('label', null, 'Repete a nova palavra-passe', p2), err, h('button', { class: 'btn', type: 'submit', text: 'Guardar' }));
+  $app.replaceChildren(h('div', { class: 'wrap auth' }, h('div', { class: 'stack' }, h('h1', { text: APP_NAME, style: 'font-size:26px' }), h('div', { class: 'card' }, h('h2', { text: 'Nova palavra-passe' }), form))));
+}
+// Decide o que mostrar depois de haver sessão: o código do segundo passo (se a conta o tem) ou os dados
+async function afterAuth() {
+  if (!S.session) return;
+  if (S.recovery) { renderRecovery(); return; }
+  try {
+    var a = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (a.data && a.data.nextLevel === 'aal2' && a.data.currentLevel !== 'aal2') { S.needMfa = true; renderMfaVerify(); return; }
+  } catch (e) { /* sem resposta: segue; o servidor continua a proteger os dados */ }
+  S.needMfa = false; startLoad();
+}
+// Janela «Segurança»: ativar/desativar a verificação em dois passos (TOTP)
+async function openSecurity() {
+  var m = txModal('Segurança da conta'), body = h('div', { class: 'stack', style: 'padding:0' }); m.box.appendChild(body);
+  async function paint() {
+    body.replaceChildren(h('p', { class: 'muted', text: 'A carregar…' }));
+    try {
+      var lf = await sb.auth.mfa.listFactors(); if (lf.error) throw lf.error;
+      var all = (lf.data.all || []), ok = (lf.data.totp || []).filter(function (x) { return x.status === 'verified'; });
+      if (ok.length) {
+        fill(body, h('div', { class: 'note' }, h('b', { text: 'Verificação em dois passos ativa.' }), ' Ao entrares, a app pede o código de 6 dígitos. Os teus dados na base de dados só abrem com essa verificação.'),
+          h('button', { class: 'btn ghost', type: 'button', text: 'Desativar', onclick: async function () {
+            if (!window.confirm('Desativar a verificação em dois passos? A conta fica protegida só pela palavra-passe.')) return;
+            try { var u = await sb.auth.mfa.unenroll({ factorId: ok[0].id }); if (u.error) throw u.error; toast('Verificação em dois passos desativada.'); await sb.auth.refreshSession(); paint(); }
+            catch (x) { toast(authMsg(x.message)); }
+          } }));
+        return;
+      }
+      for (var i = 0; i < all.length; i++) if (all[i].status === 'unverified') await sb.auth.mfa.unenroll({ factorId: all[i].id });   // tentativas antigas por acabar
+      fill(body, h('p', { class: 'muted', text: 'Protege a conta com um código de 6 dígitos de uma app de autenticação (Google Authenticator, Authy, Microsoft Authenticator…).' }),
+        h('button', { class: 'btn', type: 'button', text: 'Ativar verificação em dois passos', onclick: enroll }));
+    } catch (e) { fill(body, h('div', { class: 'note bad', text: authMsg(e.message) })); }
+  }
+  async function enroll() {
+    try {
+      var r = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Uligod MTG ' + new Date().toISOString().slice(0, 16) }); if (r.error) throw r.error;
+      var f = r.data, code = h('input', { class: 'code-in', type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, 'aria-label': 'Código de 6 dígitos' });
+      var err = h('div', { class: 'note bad', hidden: true, role: 'alert' });
+      fill(body, h('p', { text: '1. Na app de autenticação escolhe «Adicionar conta» e lê este código QR:' }),
+        h('img', { class: 'qr', src: f.totp.qr_code, alt: 'Código QR para a app de autenticação' }),
+        h('p', { class: 'small muted', text: 'Sem câmara? Escreve esta chave na app:' }), h('div', { class: 'secret', text: f.totp.secret }),
+        h('p', { text: '2. Escreve aqui o código de 6 dígitos que a app mostra:' }), code, err,
+        h('button', { class: 'btn', type: 'button', text: 'Confirmar e ativar', onclick: async function () {
+          err.hidden = true;
+          try { var v = await sb.auth.mfa.challengeAndVerify({ factorId: f.id, code: code.value.replace(/\s+/g, '') }); if (v.error) throw v.error; toast('Verificação em dois passos ativada.'); paint(); }
+          catch (x) { err.textContent = authMsg(x.message); err.hidden = false; }
+        } }),
+        h('button', { class: 'btn ghost', type: 'button', text: 'Cancelar', onclick: async function () { try { await sb.auth.mfa.unenroll({ factorId: f.id }); } catch (x) { /* ignora */ } paint(); } }));
+    } catch (e) { toast(authMsg(e.message)); }
+  }
+  paint();
+}
+
 function renderAuth(msg) {
   var mode = 'in';
   var email = h('input', { id: 'email', type: 'email', autocomplete: 'email', required: true, inputmode: 'email' });
@@ -726,38 +1047,62 @@ function renderAuth(msg) {
         if (!r2.data.session) { toast('Conta criada. Confirma o email e depois entra.'); }
       }
     } catch (x) {
-      err.textContent = x.message === 'Invalid login credentials' ? 'Email ou palavra-passe incorretos.' : x.message; err.hidden = false;
+      err.textContent = authMsg(x.message); err.hidden = false;
     } finally { submit.disabled = false; }
   } },
     h('label', null, 'Email', email),
     h('label', null, 'Palavra-passe (mínimo 8 caracteres)', pass),
-    err, submit, toggle);
+    err, submit, toggle,
+    h('button', { class: 'lnk muted small', type: 'button', text: 'Esqueci-me da palavra-passe', style: 'justify-self:center', onclick: async function () {
+      err.hidden = true;
+      if (!email.value.trim()) { err.textContent = 'Escreve primeiro o teu email.'; err.hidden = false; email.focus(); return; }
+      try {
+        var rr = await sb.auth.resetPasswordForEmail(email.value.trim(), { redirectTo: location.origin + location.pathname });
+        if (rr.error) throw rr.error;
+        toast('Se esse email tiver conta, enviámos uma ligação para definir nova palavra-passe.');
+      } catch (x) { err.textContent = authMsg(x.message); err.hidden = false; }
+    } }));
   $app.replaceChildren(h('div', { class: 'wrap auth' },
     h('div', { class: 'stack' },
       h('div', null, h('h1', { text: APP_NAME, style: 'font-size:26px' }), h('p', { class: 'muted', text: 'Standard e Alchemy no MTG Arena. Os teus decks, a tua carteira e os avisos de banlist e rotação.' })),
       h('div', { class: 'card' }, title, form),
-      msg ? h('div', { class: 'note', text: msg }) : null)));
+      msg ? h('div', { class: 'note', text: msg }) : null,
+      h('div', { class: 'who', style: 'justify-content:center' }, themeBtn()))));
 }
 
 /* ---------- estrutura principal ---------- */
 function shell(content) {
   var tabs = [['home', 'Início', 'home'], ['decks', 'Decks', 'deck'], ['alerts', 'Alertas', 'bell'], ['import', 'Importar', 'up']];
   var nav = h('nav', { class: 'tabs', 'aria-label': 'Secções' }, h('div', { class: 'in' }, tabs.map(function (t) {
-    return h('button', { type: 'button', 'aria-current': S.tab === t[0] ? 'page' : null, onclick: function () { S.tab = t[0]; render(); window.scrollTo(0, 0); } }, icon(t[2]), t[1]);
+    var n = t[0] === 'alerts' ? alertCount() : 0;
+    return h('button', { type: 'button', 'aria-current': S.tab === t[0] ? 'page' : null, onclick: function () { S.tab = t[0]; render(); window.scrollTo(0, 0); } }, icon(t[2]), t[1],
+      n ? h('span', { class: 'badge', 'aria-label': sentence(n, 'aviso', 'avisos'), text: n }) : null);
   })));
   var email = S.session && S.session.user && S.session.user.email;
   $app.replaceChildren(
     h('div', { class: 'top' }, h('div', { class: 'wrap top-in' },
       h('div', { class: 'brand' }, APP_NAME, h('small', { text: 'Arena · Standard + Alchemy' })),
-      h('div', { class: 'who' }, h('button', { type: 'button', title: email || '', text: 'Sair', onclick: function () { sb.auth.signOut(); } })))),
+      h('div', { class: 'who' }, themeBtn(),
+        h('button', { type: 'button', title: email || '', text: 'Segurança', onclick: openSecurity }),
+        h('button', { type: 'button', title: email || '', text: 'Sair', onclick: function () { sb.auth.signOut(); } })))),
     h('main', { class: 'wrap' }, content),
     nav);
 }
+// Avisos a pedir atenção: datas nos próximos 14 dias + decks com problemas de legalidade
+function alertCount() {
+  if (!S.events || !S.decks) return 0;
+  var soon = S.events.filter(function (e) { var d = daysUntil(e.event_date); return d >= 0 && d <= 14; }).length;
+  return soon + S.decks.filter(hasHardProblem).length;
+}
 function render() {
   if (!S.session) return renderAuth();
+  if (S.recovery) return renderRecovery();
+  if (S.needMfa) return renderMfaVerify();
   if (!S.decks) { shell(h('div', { class: 'card', text: 'A carregar…' })); return; }
   var views = { home: viewHome, decks: viewDecks, alerts: viewAlerts, import: viewImport };
-  shell(views[S.tab]());
+  var v = views[S.tab]();
+  if (S.offline) v.insertBefore(offlineNote(), v.firstChild);
+  shell(v);
 }
 
 /* ---------- Início ---------- */
@@ -771,7 +1116,7 @@ function viewHome() {
   var out = h('div', { class: 'stack' });
   if (sunset) {
     var dd = daysUntil(sunset.event_date), f = fmtDate(sunset.event_date);
-    out.appendChild(h('div', { class: 'note warn' }, h('b', { text: 'Alchemy acaba em ' + dd + ' dias' }),
+    out.appendChild(h('div', { class: 'note warn' }, h('b', { text: dd > 1 ? 'Alchemy acaba em ' + dd + ' dias' : dd === 1 ? 'Alchemy acaba amanhã' : dd === 0 ? 'Alchemy acaba hoje' : 'Alchemy já terminou' }),
       ' (' + f.day + ' ' + f.mon + ' ' + f.year + '), com a rotação do Standard. As cartas digitais continuam em Historic, Timeless e Brawl.'));
   }
   out.appendChild(h('section', { class: 'card' }, h('h3', { text: 'Carteira' }),
@@ -830,6 +1175,11 @@ function viewDecks() {
       if (S.fmt === 'problems' && !deckProblems(d).length) return false;
       return !qq || d.name.toLowerCase().indexOf(qq) !== -1;
     });
+    items.sort(function (a, b) {
+      if (S.sort === 'recent') return String(b.updated_at || '').localeCompare(String(a.updated_at || '')) || a.name.localeCompare(b.name);
+      if (S.sort === 'format') return String(a.format_name).localeCompare(String(b.format_name)) || a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name, 'pt', { numeric: true });
+    });
     fill(list, items.length ? items.map(deckRow) : h('p', { class: 'muted', text: 'Nenhum deck com este filtro.' }));
     count.textContent = sentence(items.length, 'deck', 'decks');
   }
@@ -840,9 +1190,12 @@ function viewDecks() {
     }, text: f[1] });
   }));
   var search = h('input', { id: 'deck-search', type: 'search', placeholder: 'Procurar deck…', value: S.q, oninput: function (e) { S.q = e.target.value; paint(); } });
+  var sortSel = h('select', { 'aria-label': 'Ordenar decks', style: 'width:auto;min-width:0;flex:0 1 auto', onchange: function (e) { S.sort = e.target.value; paint(); } },
+    [['name', 'Ordenar por nome'], ['recent', 'Ordenar por mais recentes'], ['format', 'Ordenar por formato']].map(function (o) { return h('option', { value: o[0], selected: o[0] === S.sort, text: o[1] }); }));
   var out = h('div', { class: 'stack' }, search,
-    h('button', { class: 'btn ghost', type: 'button', text: '+ Importar deck (texto do Arena)', onclick: function () { openNewDeckImport(); } }),
-    bar, count, list);
+    h('div', { class: 'row' }, h('button', { class: 'btn ghost', style: 'flex:1', type: 'button', text: '+ Novo deck', onclick: function () { if (needOnline()) newEmptyDeck(); } }),
+      h('button', { class: 'btn ghost', style: 'flex:1', type: 'button', text: '+ Importar texto', onclick: function () { if (needOnline()) openNewDeckImport(); } })),
+    bar, h('div', { class: 'row between' }, count, sortSel), list);
   paint();
   return out;
 }
@@ -857,48 +1210,193 @@ function deckRow(d) {
       d.is_bo1 ? null : h('span', { class: 'chip', text: 'Bo3' }),
       probs.length ? probs.slice(0, 2).map(function (p) { return h('span', { class: 'chip ' + p.k, text: p.t }); }) : h('span', { class: 'chip ok', text: 'Legal' })));
 }
-async function openDeck(d) {
-  var sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-label': d.name });
-  var body = h('div', { class: 'stack' }, h('div', { class: 'card', text: 'A carregar cartas…' }));
-  function close() { sheet.remove(); document.body.style.overflow = ''; }
-  var curLines = null;
-  var xbtn = h('button', { class: 'back xbtn', type: 'button', text: '⇅ Importar / Exportar', disabled: true, onclick: function () {
-    openTransfer(d, curLines || [], async function () {
-      // depois de importar: recarrega os dados e volta a abrir o deck atualizado
-      await loadAll();
-      var nd = S.decks.filter(function (x) { return x.deck_id === d.deck_id; })[0];
-      close(); render(); if (nd) openDeck(nd);
+// Linhas do deck (catálogo + cartas «extra» guardadas só pelo nome) e resumo do que falta craftar
+async function loadDeckLines(d) {
+  var r = await q(sb.from('deck_lines').select('*').eq('deck_id', d.deck_id));
+  var lines = r.data || [], craft = null;
+  if (S.collCount > 0) {
+    var cr = await q(sb.from('deck_craft_summary').select('*').eq('deck_id', d.deck_id).maybeSingle());
+    craft = cr.data;
+  }
+  try {
+    var xr = await q(sb.from('deck_extra_cards').select('zone,name,set_code,collector_number,quantity').eq('deck_id', d.deck_id));
+    var xs = xr.data || [], info = {}, xsets = {};
+    xs.forEach(function (x) { if (x.set_code && x.collector_number) { var s = mapSet(x.set_code); (xsets[s] = xsets[s] || []).push(x.collector_number); } });
+    var sets = Object.keys(xsets);   // dados do catálogo por set + número (mesmo sem arena_id): miniatura, tipo, cor…
+    var found = await Promise.all(sets.map(function (s) {
+      return q(sb.from('cards').select('name,set_code,collector_number,type_line,cmc,colors,rarity,image_uri,mana_cost,oracle_id').eq('set_code', s).in('collector_number', xsets[s]));
+    }));
+    found.forEach(function (ri) { (ri.data || []).forEach(function (c) { info[c.set_code + ':' + c.collector_number] = c; }); });
+    xs.forEach(function (x) {
+      var c = info[mapSet(x.set_code) + ':' + x.collector_number] || {};
+      lines.push({ deck_id: d.deck_id, arena_id: null, extra: true, xk: x, zone: x.zone, name: x.name, set_code: x.set_code || null, collector_number: x.collector_number || null, quantity: x.quantity,
+        type_line: c.type_line || null, cmc: c.cmc || 0, rarity: c.rarity || null, colors: c.colors || null, image_uri: c.image_uri || null, mana_cost: c.mana_cost || null, oracle_id: c.oracle_id || null, legality: null });
     });
+  } catch (ex) { /* sem cartas extra */ }
+  return { lines: lines, craft: craft };
+}
+function touchDeck(id) { sb.from('decks').update({ updated_at: new Date().toISOString() }).eq('id', id).then(function () { /* ok */ }, function () { /* ignora */ }); }
+async function searchCards(term) {
+  var t = esc(term.trim()); if (t.length < 2) return [];
+  var r = await q(sb.from('cards').select('arena_id,name,set_code,collector_number,rarity,type_line,cmc,colors,mana_cost,image_uri,oracle_id').ilike('name', '%' + t + '%').not('arena_id', 'is', null).order('arena_id', { ascending: false }).limit(80));
+  var seen = {}, out = [];
+  (r.data || []).forEach(function (c) { if (!seen[c.name]) { seen[c.name] = 1; out.push(c); } });   // uma por nome (a edição mais recente)
+  return out.slice(0, 12);
+}
+async function duplicateDeck(d, lines) {
+  var ins = await q(sb.from('decks').insert({ user_id: S.session.user.id, name: d.name + ' (cópia)', format_code: d.format_code, source: 'manual', is_bo1: d.is_bo1 }).select('id'));
+  var id = ins.data[0].id;
+  try {
+    var rows = lines.filter(function (l) { return !l.extra; }).map(function (l) { return { deck_id: id, arena_id: l.arena_id, zone: l.zone, quantity: l.quantity }; });
+    for (var i = 0; i < rows.length; i += 500) await q(sb.from('deck_cards').insert(rows.slice(i, i + 500)));
+    var ex = lines.filter(function (l) { return l.extra; }).map(function (l) { return { deck_id: id, zone: l.xk.zone, name: l.xk.name, set_code: l.xk.set_code || '', collector_number: l.xk.collector_number || '', quantity: l.quantity }; });
+    if (ex.length) await q(sb.from('deck_extra_cards').insert(ex));
+  } catch (e) { try { await deleteDeckRows(id); } catch (x) { /* ignora */ } throw e; }   // sem cópia a meio
+  return id;
+}
+async function deleteDeckRows(id) {
+  await q(sb.from('deck_cards').delete().eq('deck_id', id));
+  await q(sb.from('deck_extra_cards').delete().eq('deck_id', id));
+  await q(sb.from('decks').delete().eq('id', id));
+}
+var DECK_FORMATS = ['standard', 'alchemy', 'historic', 'pioneer', 'timeless', 'brawl', 'standard_brawl', 'competitive_brawl', 'custom'];
+// Deck novo e vazio (depois abre-se logo em modo de edição para adicionar cartas)
+function newEmptyDeck() {
+  var m = txModal('Novo deck');
+  var nameIn = h('input', { type: 'text', placeholder: 'Nome do deck', maxlength: 80, 'aria-label': 'Nome do deck' });
+  var fsel = h('select', { 'aria-label': 'Formato' }, DECK_FORMATS.map(function (f) { return h('option', { value: f, text: FORMAT_LABEL[f] || f }); }));
+  var go = h('button', { class: 'btn', type: 'button', text: 'Criar e adicionar cartas', onclick: async function () {
+    var nm = nameIn.value.trim(); if (!nm) { toast('Escreve o nome do deck.'); nameIn.focus(); return; }
+    go.disabled = true;
+    try {
+      var ins = await q(sb.from('decks').insert({ user_id: S.session.user.id, name: nm, format_code: fsel.value, source: 'manual', is_bo1: true }).select('id'));
+      await loadAll(); m.close(); S.tab = 'decks'; render();
+      var nd = S.decks.filter(function (x) { return x.deck_id === ins.data[0].id; })[0];
+      if (nd) openDeck(nd, true);
+    } catch (e) { toast('Não consegui criar o deck: ' + e.message); go.disabled = false; }
+  } });
+  m.box.appendChild(h('div', { class: 'stack', style: 'padding:0' }, h('label', null, 'Nome', nameIn), h('label', null, 'Formato', fsel), go));
+  nameIn.focus();
+}
+async function openDeck(d, startEdit) {
+  var sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': d.name });
+  var ED = { on: false, dirty: false, lines: null, craft: null };
+  var title = h('h2', { text: d.name, style: 'overflow-wrap:anywhere' });
+  var toolsBox = h('div'), detailBox = h('div');
+  var body = h('div', { class: 'stack' }, toolsBox, detailBox);
+  fill(detailBox, h('div', { class: 'card', text: 'A carregar cartas…' }));
+  function key(e) { if (e.key === 'Escape' && OV.stack[OV.stack.length - 1] === close) close(); }
+  function close() {
+    if (!sheet.isConnected) return;
+    document.removeEventListener('keydown', key); sheet.remove(); document.body.style.overflow = ''; ovRelease(close);
+    if (ED.dirty) loadAll().then(render).catch(function () { /* ignora */ });   // atualiza a lista com as alterações
+  }
+  function paint() {
+    var st = sheet.scrollTop;
+    fill(detailBox, deckDetail(d, ED.lines, ED.craft, ED.on ? ops : null));
+    sheet.scrollTop = st;
+  }
+  async function refresh() {   // volta a ler o deck e a lista (contagens, legalidade, o que falta craftar)
+    await loadAll();
+    var nd = S.decks.filter(function (x) { return x.deck_id === d.deck_id; })[0];
+    if (!nd) { close(); return; }
+    Object.assign(d, nd); title.textContent = d.name;
+    var r = await loadDeckLines(d); ED.lines = r.lines; ED.craft = r.craft; ED.dirty = false;
+    render(); paint(); paintTools();
+  }
+  async function qty(l, delta) {
+    if (!needOnline()) return;
+    var nq = l.quantity + delta; if (nq > 99) return;
+    try {
+      if (l.extra) {
+        var x = l.xk, key2 = function (b) { return b.eq('deck_id', d.deck_id).eq('zone', x.zone).eq('name', x.name).eq('set_code', x.set_code || '').eq('collector_number', x.collector_number || ''); };
+        if (nq <= 0) await q(key2(sb.from('deck_extra_cards').delete())); else await q(key2(sb.from('deck_extra_cards').update({ quantity: nq })));
+      } else if (nq <= 0) {
+        await q(sb.from('deck_cards').delete().eq('deck_id', d.deck_id).eq('arena_id', l.arena_id).eq('zone', l.zone));
+      } else {
+        await q(sb.from('deck_cards').upsert({ deck_id: d.deck_id, arena_id: l.arena_id, zone: l.zone, quantity: nq }, { onConflict: 'deck_id,arena_id,zone' }));
+      }
+      l.quantity = nq; if (nq <= 0) ED.lines.splice(ED.lines.indexOf(l), 1);
+      ED.dirty = true; touchDeck(d.deck_id); paint();
+    } catch (e) { toast('Não consegui guardar: ' + e.message); }
+  }
+  async function addCard(c, zone) {
+    if (!needOnline()) return;
+    var same = ED.lines.filter(function (l) { return !l.extra && l.zone === zone && l.name === c.name; })[0];   // a mesma carta (outra edição): soma
+    if (same) { await qty(same, 1); toast('+1 ' + c.name); return; }
+    try {
+      await q(sb.from('deck_cards').upsert({ deck_id: d.deck_id, arena_id: c.arena_id, zone: zone, quantity: 1 }, { onConflict: 'deck_id,arena_id,zone' }));
+      ED.lines.push({ deck_id: d.deck_id, arena_id: c.arena_id, zone: zone, name: c.name, set_code: c.set_code, collector_number: c.collector_number, quantity: 1, type_line: c.type_line, cmc: c.cmc,
+        rarity: c.rarity, colors: c.colors, image_uri: c.image_uri, mana_cost: c.mana_cost, oracle_id: c.oracle_id, legality: null });
+      ED.dirty = true; touchDeck(d.deck_id); toast('Adicionada: ' + c.name); paint();
+    } catch (e) { toast('Não consegui adicionar: ' + e.message); }
+  }
+  var ops = { qty: qty };
+  function paintTools() {
+    if (!ED.on) { fill(toolsBox); return; }
+    var nameIn = h('input', { type: 'text', value: d.name, maxlength: 80, 'aria-label': 'Nome do deck' });
+    var fsel = h('select', { 'aria-label': 'Formato do deck' }, DECK_FORMATS.map(function (f) { return h('option', { value: f, selected: f === d.format_code, text: FORMAT_LABEL[f] || f }); }));
+    var term = h('input', { type: 'search', placeholder: 'Procurar carta pelo nome (inglês)…', 'aria-label': 'Procurar carta' });
+    var zsel = h('select', { 'aria-label': 'Adicionar a' }, [['main', 'ao main'], ['side', 'ao sideboard'], ['command', 'ao comandante'], ['companion', 'ao companheiro']].map(function (z) { return h('option', { value: z[0], text: z[1] }); }));
+    var res = h('div', { class: 'add-res' }), timer = null, seq = 0;
+    function runSearch() {
+      var my = ++seq, t = term.value;
+      if (t.trim().length < 2) { fill(res); return; }
+      fill(res, h('p', { class: 'muted small', text: 'A procurar…' }));
+      searchCards(t).then(function (cs) {
+        if (my !== seq) return;
+        fill(res, cs.length ? cs.map(function (c) {
+          return h('div', { class: 'cl' }, thumb(c), h('span', { class: 'n' }, h('i', { class: 'dot ' + (c.rarity || '') }), ' ', cardLink(c), ' ', h('span', { class: 'muted small num', text: String(c.set_code).toUpperCase() })),
+            h('button', { class: 'back', type: 'button', text: '+ Adicionar', onclick: function () { addCard(c, zsel.value); } }));
+        }) : h('p', { class: 'muted small', text: 'Nenhuma carta com esse nome no catálogo (só cartas com ID do Arena).' }));
+      }).catch(function (e) { if (my === seq) fill(res, h('div', { class: 'note bad', text: e.message })); });
+    }
+    term.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(runSearch, 300); });
+    fill(toolsBox, h('div', { class: 'card tools' }, h('h3', { text: 'Editar deck' }),
+      d.source === 'log' ? h('div', { class: 'note warn', text: 'Este deck veio do Player.log: se importares o Player.log outra vez, volta ao que está no Arena.' }) : null,
+      h('div', { class: 'row' }, nameIn, h('button', { class: 'back', type: 'button', style: 'flex:none', text: 'Renomear', onclick: async function () {
+        var nm = nameIn.value.trim(); if (!nm || nm === d.name || !needOnline()) return;
+        try { await q(sb.from('decks').update({ name: nm, updated_at: new Date().toISOString() }).eq('id', d.deck_id)); d.name = nm; title.textContent = nm; ED.dirty = true; toast('Deck renomeado.'); }
+        catch (e) { toast('Não consegui renomear: ' + e.message); }
+      } })),
+      h('label', null, 'Formato', fsel),
+      h('div', { class: 'row' }, zsel, term), res,
+      h('div', { class: 'row' },
+        h('button', { class: 'back', type: 'button', text: 'Duplicar deck', onclick: async function () {
+          if (!needOnline()) return;
+          try { await duplicateDeck(d, ED.lines); await loadAll(); render(); toast('Cópia criada: ' + d.name + ' (cópia)'); } catch (e) { toast('Não consegui duplicar: ' + e.message); }
+        } }),
+        h('button', { class: 'back', type: 'button', style: 'color:var(--bad)', text: 'Apagar deck', onclick: async function () {
+          if (!needOnline()) return;
+          if (!window.confirm('Apagar o deck «' + d.name + '» da app? Não dá para desfazer (no Arena o deck não é afetado).')) return;
+          try { await deleteDeckRows(d.deck_id); ED.dirty = true; toast('Deck apagado.'); close(); } catch (e) { toast('Não consegui apagar: ' + e.message); }
+        } }))));
+    fsel.addEventListener('change', async function () {
+      if (!needOnline()) return;
+      try { await q(sb.from('decks').update({ format_code: fsel.value, updated_at: new Date().toISOString() }).eq('id', d.deck_id)); toast('Formato alterado.'); await refresh(); }
+      catch (e) { toast('Não consegui alterar o formato: ' + e.message); }
+    });
+  }
+  var xbtn = h('button', { class: 'back', type: 'button', text: '⇅ Importar / Exportar', disabled: true, onclick: function () {
+    if (!needOnline()) return;
+    openTransfer(d, ED.lines || [], async function () { await refresh(); });
+  } });
+  var edBtn = h('button', { class: 'back', type: 'button', text: '✎ Editar', disabled: true, onclick: async function () {
+    if (!ED.on && !needOnline()) return;
+    if (ED.on && ED.dirty) { edBtn.disabled = true; try { await refresh(); } catch (e) { toast(e.message); } edBtn.disabled = false; }
+    ED.on = !ED.on; edBtn.textContent = ED.on ? '✓ Concluir' : '✎ Editar'; paintTools(); paint();
   } });
   sheet.appendChild(h('div', { class: 'wrap' },
-    h('div', { class: 'bar' }, h('button', { class: 'back', type: 'button', text: '← Decks', onclick: close }), h('h2', { text: d.name, style: 'overflow-wrap:anywhere' }), xbtn),
+    h('div', { class: 'bar' }, h('button', { class: 'back', type: 'button', text: '← Decks', onclick: close }), title, h('div', { class: 'row', style: 'margin-left:auto' }, edBtn, xbtn)),
     body));
   document.body.appendChild(sheet); document.body.style.overflow = 'hidden';
+  document.addEventListener('keydown', key); ovPush(close);
   try {
-    var r = await q(sb.from('deck_lines').select('*').eq('deck_id', d.deck_id));
-    var lines = r.data || [];
-    var craft = null;
-    if (S.collCount > 0) {
-      var cr = await q(sb.from('deck_craft_summary').select('*').eq('deck_id', d.deck_id).maybeSingle());
-      craft = cr.data;
-    }
-    try {
-      var xr = await q(sb.from('deck_extra_cards').select('zone,name,set_code,collector_number,quantity').eq('deck_id', d.deck_id));
-      var xs = xr.data || [], info = {}, xsets = {};
-      xs.forEach(function (x) { if (x.set_code && x.collector_number) (xsets[x.set_code] = xsets[x.set_code] || []).push(x.collector_number); });
-      for (var sk = 0, sn = Object.keys(xsets); sk < sn.length; sk++) {   // dados do catálogo por set + número (mesmo sem arena_id): miniatura, tipo, cor...
-        var ri = await q(sb.from('cards').select('name,set_code,collector_number,type_line,cmc,colors,rarity,image_uri,mana_cost,oracle_id').eq('set_code', sn[sk]).in('collector_number', xsets[sn[sk]]));
-        (ri.data || []).forEach(function (c) { info[c.set_code + ':' + c.collector_number] = c; });
-      }
-      xs.forEach(function (x) {
-        var c = info[x.set_code + ':' + x.collector_number] || {};
-        lines.push({ deck_id: d.deck_id, arena_id: null, extra: true, zone: x.zone, name: x.name, set_code: x.set_code || null, collector_number: x.collector_number || null, quantity: x.quantity,
-          type_line: c.type_line || null, cmc: c.cmc || 0, rarity: c.rarity || null, colors: c.colors || null, image_uri: c.image_uri || null, mana_cost: c.mana_cost || null, oracle_id: c.oracle_id || null, legality: null });
-      });
-    } catch (ex) { /* sem cartas extra */ }
-    curLines = lines; xbtn.disabled = false;
-    body.replaceChildren(deckDetail(d, lines, craft));
-  } catch (e) { body.replaceChildren(h('div', { class: 'note bad', text: 'Não foi possível carregar o deck: ' + e.message })); }
+    var r = await loadDeckLines(d);
+    ED.lines = r.lines; ED.craft = r.craft; xbtn.disabled = false; edBtn.disabled = false;
+    if (startEdit && !S.offline) { ED.on = true; edBtn.textContent = '✓ Concluir'; paintTools(); }
+    paint();
+  } catch (e) { fill(detailBox, h('div', { class: 'note bad', text: (S.offline ? 'Sem ligação: abre o deck quando estiveres online. ' : 'Não foi possível carregar o deck: ') + e.message })); }
 }
 function typeGroup(t) {
   t = t || '';
@@ -909,7 +1407,7 @@ function typeGroup(t) {
   if (/Artifact|Enchantment|Battle/.test(t)) return 'Artefactos e encantamentos';
   return 'Outras';
 }
-function deckDetail(d, lines, craft) {
+function deckDetail(d, lines, craft, ops) {   // ops: só em modo de edição ({qty})
   var wrap = h('div', { class: 'stack' });
   var probs = deckProblems(d);
   wrap.appendChild(h('div', { class: 'card' },
@@ -937,6 +1435,19 @@ function deckDetail(d, lines, craft) {
       return h('div', null, h('span', { text: n || '' }), h('i', { style: 'height:' + Math.max(2, Math.round(n / mx * 44)) + 'px' }), h('span', { text: i === 7 ? '7+' : i }));
     })),
     h('p', { class: 'muted small', text: lands + ' terrenos · ' + (d.main_count - lands) + ' feitiços (sem contar cartas por identificar)' })));
+
+  // cores dos feitiços (cartas com várias cores contam em cada uma)
+  var cc = { W: 0, U: 0, B: 0, R: 0, G: 0 }, colorless = 0;
+  main.forEach(function (l) {
+    if (/Land/.test(l.type_line || '') || (l.arena_id == null && !l.extra)) return;
+    var cols = (l.colors || []).filter(function (c) { return cc[c] != null; });
+    if (!cols.length) colorless += l.quantity; else cols.forEach(function (c) { cc[c] += l.quantity; });
+  });
+  var CN = { W: 'Branco', U: 'Azul', B: 'Preto', R: 'Vermelho', G: 'Verde' };
+  var used = Object.keys(cc).filter(function (c) { return cc[c] > 0; });
+  if (used.length || colorless) wrap.appendChild(h('div', { class: 'card' }, h('h3', { text: 'Cores dos feitiços' }),
+    h('div', { class: 'pips' }, used.map(function (c) { return h('span', { class: 'chip', title: CN[c] }, h('span', { class: 'sym ' + c, 'aria-hidden': 'true', text: c }), cc[c] + ' ' + CN[c].toLowerCase()); }),
+      colorless ? h('span', { class: 'chip', text: colorless + ' incolores' }) : null)));
 
   // falta craftar
   if (craft) {
@@ -969,7 +1480,11 @@ function deckDetail(d, lines, craft) {
           thumb(l),
           h('span', { class: 'n' }, h('i', { class: 'dot ' + (l.rarity || '') }), ' ', cardLink(l, l.name || ('Carta ' + l.arena_id + ' (por identificar)'), function () { return seq; }), ' ', manaPills(l.colors),
             l.set_code ? h('span', { class: 'muted small num', text: ' ' + l.set_code.toUpperCase() }) : null),
-          l.legality === 'banned' ? h('span', { class: 'chip bad', text: 'Banida' }) : l.legality === 'not_legal' ? h('span', { class: 'chip bad', text: 'Fora' }) : l.legality === 'unknown' ? h('span', { class: 'chip warn', text: '?' }) : null));
+          h('span', { class: 'row', style: 'gap:6px' },
+            l.legality === 'banned' ? h('span', { class: 'chip bad', text: 'Banida' }) : l.legality === 'not_legal' ? h('span', { class: 'chip bad', text: 'Fora' }) : l.legality === 'unknown' ? h('span', { class: 'chip warn', text: '?' }) : null,
+            ops ? h('span', { class: 'step' },
+              h('button', { type: 'button', class: l.quantity === 1 ? 'del' : '', 'aria-label': (l.quantity === 1 ? 'Remover ' : 'Menos uma ') + (l.name || 'carta'), text: l.quantity === 1 ? '✕' : '−', onclick: function () { ops.qty(l, -1); } }),
+              h('button', { type: 'button', 'aria-label': 'Mais uma ' + (l.name || 'carta'), text: '+', onclick: function () { ops.qty(l, 1); } })) : null)));
       });
     });
     wrap.appendChild(card);
@@ -1027,8 +1542,9 @@ function viewImport() {
   var parsed = null;
   var delMissing = h('input', { id: 'del-missing', type: 'checkbox' });
   var saveBtn = h('button', { class: 'btn', type: 'button', text: 'Guardar na minha conta', hidden: true, onclick: async function () {
+    if (!needOnline()) return;
     saveBtn.disabled = true; saveBtn.textContent = 'A guardar…';
-    try { var n = await saveLog(parsed, delMissing.checked); toast('Guardado: ' + sentence(n.decks, 'deck', 'decks') + '.'); await loadAll(); S.tab = 'home'; render(); }
+    try { var n = await saveLog(parsed, delMissing.checked, function (a, b) { saveBtn.textContent = 'A guardar decks… ' + a + '/' + b; }); toast('Guardado e confirmado: ' + sentence(n.decks, 'deck', 'decks') + '.'); await loadAll(); S.tab = 'home'; render(); }
     catch (e) { toast('Erro ao guardar: ' + e.message); saveBtn.disabled = false; saveBtn.textContent = 'Guardar na minha conta'; }
   } });
   fileIn.addEventListener('change', async function () {
@@ -1055,23 +1571,44 @@ function viewImport() {
     h('p', { class: 'small muted', text: 'Escolhe o ficheiro Player.log do PC. É lido neste dispositivo; só a carteira e os teus decks são guardados. Precisas de «Detailed Logs (Plugin Support)» ativo no Arena.' }),
     fileIn, prev, saveBtn));
 
-  // 2) lista de texto da coleção
-  var ta = h('textarea', { id: 'coll-text', placeholder: '4 Llanowar Elves (FDN) 227\n2 Maralen, Fae Ascendant (ECL) 233\n3 Island', spellcheck: 'false' });
+  // 2) coleção: JSON do tracker (o mais rápido), CSV ou lista de texto
+  var ta = h('textarea', { id: 'coll-text', placeholder: '{"cards":[{"grpId":87901,"owned":4}, …]}\nou\n4 Llanowar Elves (FDN) 227\n3 Island', spellcheck: 'false' });
   var res = h('div');
-  var replace = h('input', { id: 'coll-replace', type: 'checkbox' });
+  var collFile = h('input', { id: 'coll-file', type: 'file', accept: '.json,.csv,.txt,application/json,text/plain,text/csv', 'aria-label': 'Ficheiro da coleção' });
+  collFile.addEventListener('change', async function () {
+    var f = collFile.files && collFile.files[0]; if (!f) return;
+    try { ta.value = await f.text(); res.replaceChildren(h('p', { class: 'muted small', text: f.name + ' carregado (' + Math.round(f.size / 1024) + ' KB). Confirma o modo e toca em «Importar coleção».' })); }
+    catch (e) { res.replaceChildren(h('div', { class: 'note bad', text: 'Não consegui ler o ficheiro: ' + e.message })); }
+  });
+  var modeSel = h('select', { id: 'coll-mode', 'aria-label': 'Como importar' },
+    h('option', { value: 'update', text: 'Atualizar: as cartas da lista ficam com a quantidade indicada; as outras não são tocadas' }),
+    h('option', { value: 'replace', text: 'Substituir: a coleção fica exatamente igual à lista (remove o que não vier nela)' }));
   var goBtn = h('button', { class: 'btn', type: 'button', text: 'Importar coleção', onclick: async function () {
-    goBtn.disabled = true; res.replaceChildren(h('p', { class: 'muted', text: 'A processar…' }));
+    if (!needOnline()) return;
+    if (modeSel.value === 'replace' && S.collCount > 0 && !window.confirm('Substituir a coleção? As cartas que não estiverem na lista são removidas da app.')) return;
+    goBtn.disabled = true; res.replaceChildren(h('p', { class: 'muted', text: 'A processar… (uma coleção grande demora um pouco)' }));
     try {
-      var r = await importCollection(ta.value, replace.checked);
-      res.replaceChildren(h('div', { class: 'note' }, r.ok + ' cartas guardadas (' + r.copies + ' cópias).' + (r.notFound.length ? ' Não encontrei ' + r.notFound.length + ': ' + r.notFound.slice(0, 8).join('; ') + (r.notFound.length > 8 ? '…' : '') : ''), r.bad ? ' ' + r.bad + ' linhas ignoradas.' : ''));
+      var r = await importCollection(ta.value, modeSel.value === 'replace');
+      res.replaceChildren(h('div', { class: 'note' }, r.ok + ' cartas diferentes guardadas (' + r.copies + ' cópias). Total na conta: ' + r.total + '.',
+        r.removed ? ' ' + r.removed + ' removidas.' : '', r.unknownIds ? ' ' + r.unknownIds + ' ainda não existem no catálogo da app (cartas muito novas ou sem ID do Arena); ficam guardadas e passam a contar quando o catálogo for atualizado.' : '',
+        r.notFound.length ? ' Não encontrei ' + r.notFound.length + ': ' + r.notFound.slice(0, 8).join('; ') + (r.notFound.length > 8 ? '…' : '') : '', r.bad ? ' ' + r.bad + ' linhas ignoradas.' : ''));
       await loadAll();
     } catch (e) { res.replaceChildren(h('div', { class: 'note bad', text: e.message })); }
     goBtn.disabled = false;
   } });
   out.appendChild(h('section', { class: 'card stack', style: 'padding:14px' },
-    h('h3', { text: 'Coleção (lista de texto)' }),
-    h('p', { class: 'small muted', text: 'Uma carta por linha: «quantidade nome (SET) número». O número e o set são opcionais, mas ajudam a escolher a carta certa.' }),
-    ta, h('label', { style: 'grid-template-columns:auto 1fr;align-items:center' }, replace, 'Substituir a coleção atual (senão junta às existentes)'), goBtn, res));
+    h('h3', { text: 'Coleção' }),
+    h('p', { class: 'small muted', text: S.collCount > 0 ? 'Tens ' + S.collCount + ' cartas diferentes registadas.' : 'Ainda sem coleção. Importa-a aqui; depois a app mostra o que falta craftar em cada deck.' }),
+    h('details', { class: 'note' }, h('summary', { text: 'Como obter a coleção do Arena (PC, uns 5 minutos)', style: 'cursor:pointer;font-weight:600' }),
+      h('div', { class: 'small', style: 'margin-top:8px;display:grid;gap:6px' },
+        h('div', { text: 'O Arena já não escreve a coleção no Player.log, por isso é preciso ler da memória do jogo. A ferramenta gratuita «MTGA Tracker Daemon» (github.com/frcaton/mtga-tracker-daemon) faz isso e mostra a coleção num endereço local.' }),
+        h('div', { text: '1. Abre o Arena no PC e espera pelo ecrã inicial.' }),
+        h('div', { text: '2. Corre o mtga-tracker-daemon (por ex.: «mtga-tracker-daemon.exe -p 9000»).' }),
+        h('div', { text: '3. No browser do PC abre http://localhost:9000/cards , seleciona tudo (Ctrl+A), copia (Ctrl+C) e cola na caixa abaixo (ou grava como .json e escolhe o ficheiro).' }),
+        h('div', { text: '4. Toca em «Importar coleção». A app aceita este JSON, um CSV (nome, set, número, quantidade) ou texto «4 Nome (SET) 123».' }),
+        h('div', { class: 'muted', text: 'Ferramentas desta família são usadas pela comunidade, mas não são da Wizards: usa por tua conta e risco e nunca dês a palavra-passe do Arena a nenhuma.' }))),
+    h('label', null, 'Escolher ficheiro (.json, .csv ou .txt)', collFile),
+    ta, h('label', null, 'Como importar', modeSel), goBtn, res));
 
   // 3) deck novo a partir do texto do Arena
   out.appendChild(h('section', { class: 'card stack', style: 'padding:14px' },
@@ -1082,8 +1619,6 @@ function viewImport() {
 }
 
 /* ---------- Importar / Exportar decks (formato de texto do MTG Arena) ---------- */
-var SET_IN = { dar: 'dom' };    // código do Arena -> código do Scryfall (onde diferem)
-var SET_OUT = { dom: 'DAR' };   // e o inverso, ao exportar
 function arenaText(lines) {
   var order = [['command', 'Commander'], ['companion', 'Companion'], ['main', 'Deck'], ['side', 'Sideboard']];
   var blocks = [], skipped = 0;
@@ -1093,7 +1628,8 @@ function arenaText(lines) {
     var out = [z[1]];
     zl.slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); }).forEach(function (l) {
       if (!l.name) { skipped += l.quantity; return; }   // carta sem entrada no catálogo: não dá para exportar
-      var set = l.set_code ? (SET_OUT[l.set_code] || l.set_code.toUpperCase()) : null;
+      // sets Alchemy (yfra, ydft…): o Arena numera-os à sua maneira, por isso exporta só o nome (o Arena escolhe a carta certa)
+      var set = l.set_code && !/^y[a-z0-9]{3}$/.test(l.set_code) ? (SET_OUT[l.set_code] || l.set_code.toUpperCase()) : null;
       out.push(l.quantity + ' ' + l.name + (set ? ' (' + set + ')' + (l.collector_number ? ' ' + l.collector_number : '') : ''));
     });
     if (out.length > 1) blocks.push(out.join('\n'));
@@ -1141,7 +1677,7 @@ async function resolveRows(rows) {
     var c = hit(r) || byName[r.name];
     if (!c) {
       var uk = r.zone + '|' + r.name.toLowerCase() + '|' + (r.set || '') + '|' + (r.num || '');
-      if (!unres[uk]) unres[uk] = { zone: r.zone, quantity: 0, name: r.name, set_code: r.set || '', collector_number: r.num || '', label: cardLabel(r.name, r.set, r.num, r.zone) };
+      if (!unres[uk]) unres[uk] = { zone: r.zone, quantity: 0, name: r.name, set_code: r._set || '', collector_number: r.num || '', label: cardLabel(r.name, r.set, r.num, r.zone) };
       unres[uk].quantity += r.quantity; return;
     }
     var key = c.arena_id + ':' + r.zone;
@@ -1273,9 +1809,13 @@ function downloadText(name, text) {
 function txModal(title) {
   var prevFocus = document.activeElement, prevOv = document.body.style.overflow;
   var el = h('div', { class: 'cm tx', role: 'dialog', 'aria-modal': 'true', 'aria-label': title, onclick: function (e) { if (e.target === el) close(); } });
-  function close() { el.remove(); document.body.style.overflow = prevOv; document.removeEventListener('keydown', key); if (prevFocus && document.contains(prevFocus)) prevFocus.focus(); }
-  function key(e) { if (e.key === 'Escape') close(); }
-  document.addEventListener('keydown', key);
+  function close() {
+    if (!el.isConnected) return;
+    el.remove(); document.body.style.overflow = prevOv; document.removeEventListener('keydown', key); ovRelease(close);
+    if (prevFocus && document.contains(prevFocus)) prevFocus.focus();
+  }
+  function key(e) { if (e.key === 'Escape' && OV.stack[OV.stack.length - 1] === close) close(); }
+  document.addEventListener('keydown', key); ovPush(close);
   var box = h('div', { class: 'cm-box' },
     h('div', { class: 'tx-head' }, h('h2', { text: title }), h('button', { class: 'back cm-x', type: 'button', 'aria-label': 'Fechar', text: '✕', onclick: close })));
   el.appendChild(box); document.body.appendChild(el); document.body.style.overflow = 'hidden';
@@ -1395,7 +1935,7 @@ function openNewDeckImport() {
     ta, h('label', null, 'Nome', nameIn), h('label', null, 'Formato', fsel), res, go));
 }
 
-async function saveLog(p, removeMissing) {
+async function saveLog(p, removeMissing, progress) {
   var uid = S.session.user.id;
   var counts = { decks: 0 };
   if (p.wallet) {
@@ -1416,11 +1956,20 @@ async function saveLog(p, removeMissing) {
     ins.data.forEach(function (d) { idOf[d.arena_deck_id] = d.id; });
   }
   if (toUpdate.length) await q(sb.from('decks').upsert(toUpdate, { onConflict: 'id' }));
-  var ids = p.decks.map(function (d) { return idOf[d.arena_deck_id]; });
-  for (var i = 0; i < ids.length; i += 20) { await q(sb.from('deck_cards').delete().in('deck_id', ids.slice(i, i + 20))); await q(sb.from('deck_extra_cards').delete().in('deck_id', ids.slice(i, i + 20))); }   // o Player.log traz as cartas reais: as «extra» deixam de ser precisas
-  var rows = [];
-  p.decks.forEach(function (d) { d.cards.forEach(function (c) { rows.push({ deck_id: idOf[d.arena_deck_id], arena_id: c.arena_id, quantity: c.quantity, zone: c.zone }); }); });
-  for (var j = 0; j < rows.length; j += 800) await q(sb.from('deck_cards').insert(rows.slice(j, j + 800)));
+  // Cartas: deck a deck, com a mesma gravação segura das importações de texto (grava o que mudou, só depois apaga o que sobra
+  // e confirma lendo outra vez). Se um deck falhar, os outros continuam e o deck com erro fica como estava ou completo, nunca vazio.
+  // O Player.log traz as cartas reais, por isso as cartas «extra» (só pelo nome) deixam de ser precisas: writeDeck(…, []) apaga-as no fim.
+  var failed = [], done = 0, next = 0;
+  async function worker() {
+    while (next < p.decks.length) {
+      var d = p.decks[next++], fin = {};
+      d.cards.forEach(function (c) { var k = c.arena_id + ':' + c.zone; fin[k] = (fin[k] || 0) + c.quantity; });
+      try { await writeDeck(idOf[d.arena_deck_id], fin, []); } catch (e) { failed.push(d.name + ': ' + e.message); }
+      done++; if (progress) progress(done, p.decks.length);
+    }
+  }
+  await Promise.all([worker(), worker(), worker()]);
+  if (failed.length) throw new Error(sentence(failed.length, 'deck não ficou', 'decks não ficaram') + ' bem guardado(s) (' + failed.slice(0, 3).join(' | ') + (failed.length > 3 ? ' …' : '') + '). Os outros ' + (p.decks.length - failed.length) + ' ficaram guardados; tenta de novo.');
   if (removeMissing) {
     var keep = {}; p.decks.forEach(function (d) { keep[d.arena_deck_id] = true; });
     var gone = Object.keys(byArena).filter(function (k) { return !keep[k]; }).map(function (k) { return byArena[k]; });
@@ -1430,52 +1979,115 @@ async function saveLog(p, removeMissing) {
   return counts;
 }
 
+/* ---------- coleção ---------- */
+function splitCsv(line) {   // CSV simples com aspas
+  var out = [], cur = '', q2 = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (q2) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q2 = false; } else cur += ch; }
+    else if (ch === '"') q2 = true; else if (ch === ',') { out.push(cur); cur = ''; } else cur += ch;
+  }
+  out.push(cur); return out;
+}
+// Aceita: JSON do mtga-tracker-daemon ({cards:[{grpId,owned}]}), lista de {arena_id,quantity}, mapa {id: quantidade}, CSV com cabeçalho, ou texto «4 Nome (SET) 123»
+function parseCollectionInput(text) {
+  var t = String(text || '').replace(/^﻿/, '').trim();
+  if (!t) throw new Error('A caixa está vazia. Cola a coleção ou escolhe um ficheiro.');
+  if (/^[\[{]/.test(t)) {
+    var j; try { j = JSON.parse(t); } catch (e) { throw new Error('O JSON não é válido (cópia incompleta?): ' + e.message); }
+    var arr = Array.isArray(j) ? j : Array.isArray(j && j.cards) ? j.cards : null, ids = {};
+    if (arr) arr.forEach(function (c) {
+      var id = Number(c.grpId != null ? c.grpId : c.arena_id != null ? c.arena_id : c.id), n = Number(c.owned != null ? c.owned : c.quantity != null ? c.quantity : c.count);
+      if (id > 0 && n > 0) ids[id] = (ids[id] || 0) + n;
+    });
+    else if (j && typeof j === 'object') Object.keys(j).forEach(function (k) { var n = Number(j[k]); if (/^\d+$/.test(k) && n > 0) ids[k] = n; });
+    if (!Object.keys(ids).length) throw new Error('Não encontrei cartas neste JSON (esperava «grpId» e «owned»).');
+    return { kind: 'ids', ids: ids };
+  }
+  var lines = t.split(/\r?\n/), head = splitCsv(lines[0]).map(function (x) { return x.trim().toLowerCase(); });
+  var ni = head.findIndex(function (x) { return /^(name|card name|card|nome)$/.test(x); });
+  if (head.length > 1 && ni >= 0) {
+    var qi = head.findIndex(function (x) { return /^(quantity|count|qty|owned|amount|quantidade)$/.test(x); });
+    var si = head.findIndex(function (x) { return /^(set|set code|set_code|edition|edition code|expansion)$/.test(x); });
+    var ci = head.findIndex(function (x) { return /^(collector number|collector_number|number|card number|#)$/.test(x); });
+    var rows = [], bad = [];
+    lines.slice(1).forEach(function (ln) {
+      if (!ln.trim()) return;
+      var c = splitCsv(ln), n = qi >= 0 ? Number(c[qi]) : 1;
+      if (!c[ni] || !(n > 0)) { bad.push(ln); return; }
+      rows.push({ quantity: n, name: c[ni].trim(), set: si >= 0 && c[si] ? c[si].trim().toLowerCase() : null, num: ci >= 0 && c[ci] ? c[ci].trim() : null });
+    });
+    return { kind: 'text', rows: rows, bad: bad };
+  }
+  var pl = window.MTGLog.parseCardList(t);
+  if (!pl.rows.length) throw new Error('Não encontrei nenhuma linha válida. Usa «4 Nome da carta (SET) 123», um CSV com cabeçalho ou o JSON do tracker.');
+  return { kind: 'text', rows: pl.rows, bad: pl.bad };
+}
+async function collectionIds(uid) {   // todos os arena_id guardados (por páginas de 1000)
+  var all = [];
+  for (var from = 0; ; from += 1000) {
+    var r = await q(sb.from('user_collection').select('arena_id').eq('user_id', uid).order('arena_id').range(from, from + 999));
+    (r.data || []).forEach(function (x) { all.push(x.arena_id); });
+    if (!r.data || r.data.length < 1000) break;
+  }
+  return all;
+}
+// «Atualizar»: grava as quantidades da lista (não soma às existentes, para importar duas vezes a mesma lista dar o mesmo resultado).
+// «Substituir»: grava primeiro, apaga depois o que sobra e confirma no fim (nunca deixa a coleção vazia se falhar a meio).
 async function importCollection(text, replaceAll) {
-  var uid = S.session.user.id;
-  var parsed = window.MTGLog.parseCardList(text);
-  if (!parsed.rows.length) throw new Error('Não encontrei nenhuma linha válida. Usa «4 Nome da carta (SET) 123».');
-  var bySetNum = {}, names = {};
-  parsed.rows.forEach(function (r) { if (r.set && r.num) (bySetNum[r.set] = bySetNum[r.set] || []).push(r.num); else names[r.name] = true; });
-  var found = {};     // chave -> arena_id
-  var sets = Object.keys(bySetNum);
-  for (var i = 0; i < sets.length; i++) {
-    var rs = await q(sb.from('cards').select('arena_id,set_code,collector_number').eq('set_code', sets[i]).in('collector_number', bySetNum[sets[i]]).not('arena_id', 'is', null));
-    rs.data.forEach(function (c) { found[c.set_code + ':' + c.collector_number] = c.arena_id; });
+  var uid = S.session.user.id, p = parseCollectionInput(text), qty = {}, notFound = [], bad = 0;
+  if (p.kind === 'ids') Object.keys(p.ids).forEach(function (k) { qty[k] = p.ids[k]; });
+  else {
+    bad = p.bad.length;
+    if (!p.rows.length) throw new Error('Não encontrei nenhuma linha de carta.');
+    var plan = await resolveRows(p.rows.map(function (r) { return { zone: 'main', quantity: r.quantity, name: r.name, set: r.set, num: r.num }; }));
+    plan.cards.forEach(function (c) { qty[c.arena_id] = (qty[c.arena_id] || 0) + c.quantity; });
+    notFound = plan.unresolved.map(function (u) { return u.label; });
   }
-  // restantes (e as que falharam por set/número) por nome
-  parsed.rows.forEach(function (r) { if (!(r.set && r.num && found[r.set + ':' + r.num])) names[r.name] = true; });
-  var nameList = Object.keys(names), byName = {};
-  for (var n = 0; n < nameList.length; n += 40) {
-    var rn = await q(sb.from('cards').select('arena_id,name,set_code').in('name', nameList.slice(n, n + 40)).not('arena_id', 'is', null).order('arena_id', { ascending: false }));
-    rn.data.forEach(function (c) { if (!byName[c.name]) byName[c.name] = c.arena_id; });
-  }
-  var qty = {}, notFound = [];
-  parsed.rows.forEach(function (r) {
-    var id = (r.set && r.num && found[r.set + ':' + r.num]) || byName[r.name];
-    if (!id) { notFound.push(r.name); return; }
-    qty[id] = (qty[id] || 0) + r.quantity;
-  });
-  var rows = Object.keys(qty).map(function (id) { return { user_id: uid, arena_id: Number(id), quantity: Math.min(qty[id], 99), updated_at: new Date().toISOString() }; });
-  if (replaceAll) await q(sb.from('user_collection').delete().eq('user_id', uid));
+  var ids = Object.keys(qty);
+  if (!ids.length) throw new Error('Nenhuma carta foi reconhecida no catálogo.');
+  var now = new Date().toISOString();
+  var rows = ids.map(function (id) { return { user_id: uid, arena_id: Number(id), quantity: Math.min(qty[id], 99), updated_at: now }; });
   for (var k = 0; k < rows.length; k += 500) await q(sb.from('user_collection').upsert(rows.slice(k, k + 500), { onConflict: 'user_id,arena_id' }));
-  return { ok: rows.length, copies: rows.reduce(function (a, r) { return a + r.quantity; }, 0), notFound: notFound, bad: parsed.bad.length };
+  var removed = 0;
+  if (replaceAll) {
+    var keep = {}; ids.forEach(function (id) { keep[id] = true; });
+    var gone = (await collectionIds(uid)).filter(function (id) { return !keep[id]; });
+    for (var g = 0; g < gone.length; g += 100) await q(sb.from('user_collection').delete().eq('user_id', uid).in('arena_id', gone.slice(g, g + 100)));
+    removed = gone.length;
+  }
+  var cnt = await q(sb.from('user_collection').select('arena_id', { count: 'exact', head: true }));
+  if (replaceAll && cnt.count !== rows.length) throw new Error('A verificação depois de guardar falhou (esperava ' + rows.length + ' cartas, a conta tem ' + cnt.count + '). Importa outra vez.');
+  var unknownIds = 0;
+  if (p.kind === 'ids') {   // quantas destas cartas o catálogo ainda não conhece
+    var known = 0;
+    for (var u = 0; u < ids.length; u += 300) { var kr = await q(sb.from('cards').select('arena_id').in('arena_id', ids.slice(u, u + 300))); known += (kr.data || []).length; }
+    unknownIds = ids.length - known;
+  }
+  return { ok: rows.length, copies: rows.reduce(function (a, r) { return a + r.quantity; }, 0), notFound: notFound, bad: bad, removed: removed, total: cnt.count, unknownIds: unknownIds };
 }
 
 /* ---------- arranque ---------- */
 async function boot() {
-  var r = await sb.auth.getSession();
-  S.session = r.data.session;
-  sb.auth.onAuthStateChange(function (_e, session) {
+  sb.auth.onAuthStateChange(function (ev, session) {
     var was = S.session; S.session = session;
     if (!session) {
-      closeCard(true); S.decks = null; S.cardCache = {}; S.wallet = null; S.events = null; S.bans = {}; S.collCount = null;
-      Array.prototype.forEach.call(document.querySelectorAll('.sheet'), function (s) { s.remove(); });
-      document.body.style.overflow = ''; render(); return;
+      closeCard(true); S.decks = null; S.cardCache = {}; S.wallet = null; S.events = null; S.bans = {}; S.collCount = null; S.needMfa = false; S.offline = false; S.recovery = false;
+      KV.del('snap');   // a cópia local dos dados sai do aparelho
+      Array.prototype.forEach.call(document.querySelectorAll('.sheet, .cm'), function (s) { s.remove(); });
+      ovReset(); document.body.style.overflow = ''; render(); return;
     }
+    if (ev === 'PASSWORD_RECOVERY') S.recovery = true;
     // fora do callback: chamar o Supabase aqui dentro pode bloquear o pedido de sessão
-    if (!was || was.user.id !== session.user.id) setTimeout(startLoad, 0);
+    if (!was || was.user.id !== session.user.id || ev === 'PASSWORD_RECOVERY') setTimeout(afterAuth, 0);
   });
-  if (S.session) startLoad(); else render();
+  // A sessão chega pelo evento INITIAL_SESSION acima (uma só vez, sem carregar os dados em duplicado).
+  // Plano B: se o evento não vier (versão antiga da biblioteca), pergunta diretamente.
+  setTimeout(async function () {
+    if (S.session || S.decks) return;
+    var r = await sb.auth.getSession();
+    if (r.data.session && !S.session) { S.session = r.data.session; afterAuth(); } else if (!S.session) render();
+  }, 1500);
 }
 async function startLoad() {
   S.decks = null; render();
