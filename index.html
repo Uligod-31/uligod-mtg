@@ -356,6 +356,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
+var APP_VERSION = "13";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1077,7 +1078,8 @@ function renderAuth(msg) {
       brandHead('Standard e Alchemy no MTG Arena. Os teus decks, a tua carteira e os avisos de banlist e rotação.'),
       h('div', { class: 'card' }, title, form),
       msg ? h('div', { class: 'note', text: msg }) : null,
-      h('div', { class: 'who', style: 'justify-content:center' }, themeBtn()))));
+      h('div', { class: 'who', style: 'justify-content:center' }, themeBtn()),
+      h('div', { class: 'muted small num', style: 'text-align:center', text: 'Versão ' + APP_VERSION }))));
 }
 
 /* ---------- estrutura principal ---------- */
@@ -1091,7 +1093,7 @@ function shell(content) {
   var email = S.session && S.session.user && S.session.user.email;
   $app.replaceChildren(
     h('div', { class: 'top' }, h('div', { class: 'wrap top-in' },
-      h('div', { class: 'brand' }, APP_NAME, h('small', { text: 'Arena · Standard + Alchemy' })),
+      h('div', { class: 'brand' }, APP_NAME, h('small', { text: 'Arena · Standard + Alchemy · v' + APP_VERSION })),
       h('div', { class: 'who' }, themeBtn(),
         h('button', { type: 'button', title: email || '', text: 'Segurança', onclick: openSecurity }),
         h('button', { type: 'button', title: email || '', text: 'Sair', onclick: function () { sb.auth.signOut(); } })))),
