@@ -27,8 +27,9 @@
  * v23: «Faltam» como no Arena: só as cartas que não tens (custo de 1 ou 4 cópias à escolha); «Completar 4×» à parte.
  * v24: ícones dos separadores Decks (caixa de deck) e Coleção (cartas de MTG).
  * v25: ícone Decks redesenhado (caixa de deck vertical com tampa, fecho e emblema em estrela).
- * v26: ícone Decks em perspetiva (caixa fechada, 3 faces) e ícone Coleção com a carta maior, sem riscos laterais. */
-var CACHE = 'uligod-mtg-shell-v26';
+ * v26: ícone Decks em perspetiva (caixa fechada, 3 faces) e ícone Coleção com a carta maior, sem riscos laterais.
+ * v27: ícone Início em brasão de chamas (ideia do utilizador). */
+var CACHE = 'uligod-mtg-shell-v27';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {

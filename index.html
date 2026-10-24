@@ -397,7 +397,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "26";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "27";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -579,7 +579,7 @@ function rowFromScry(j) {
 
 function icon(name) {
   var p = {
-    home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',
+    home: 'M12 2l1.5 7 2-4.5 1 6.5 3-3.5-.7 6Q17 18 12 21Q7 18 5.2 13.5l-.7-6 3 3.5 1-6.5 2 4.5zM12 11v4.5',
     deck: 'M4 9h11v11a1 1 0 01-1 1H5a1 1 0 01-1-1zM4 9l4-4h11l-4 4M15 9l4-4v11a1 1 0 01-.3.7L15 21M4 12.2h11M15 12.2l4-4M9.5 14.6l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z',
     bell: 'M6 9a6 6 0 1112 0c0 6 2 7 2 7H4s2-1 2-7M10 20a2 2 0 004 0',
     up: 'M12 16V4M7 9l5-5 5 5M5 20h14',
