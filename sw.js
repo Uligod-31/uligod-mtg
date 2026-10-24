@@ -22,8 +22,9 @@
  * v18: nova paleta (azul, cinzento escuro e fúcsia) e separador Coleção (galeria com filtros, como no Arena).
  * v19: ícones redesenhados na paleta (gerar-icones.ps1).
  * v20: cartas do ícone maiores (preenchem o fundo como os outros ícones).
- * v21: Coleção com Tenho / Faltam / Para os decks (custo de craft em wildcards contra a carteira). */
-var CACHE = 'uligod-mtg-shell-v21';
+ * v21: Coleção com Tenho / Faltam / Para os decks (custo de craft em wildcards contra a carteira).
+ * v22: coleção coerente: ids do Arena fora do catálogo ligados à carta certa (tabela arena_aliases), «Tenho» junta as edições como o «Faltam». */
+var CACHE = 'uligod-mtg-shell-v22';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {

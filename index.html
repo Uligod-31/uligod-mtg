@@ -397,7 +397,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "21";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "22";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1204,7 +1204,7 @@ function viewHome() {
 
   out.appendChild(h('section', { class: 'card' }, h('h3', { text: 'Coleção' }),
     S.collCount > 0
-      ? h('p', null, h('b', { class: 'num', text: S.collCount }), ' cartas diferentes registadas.')
+      ? h('p', null, h('b', { class: 'num', text: S.collCount }), ' edições de cartas registadas (a Coleção junta as edições da mesma carta).')
       : h('p', { class: 'muted', text: 'Ainda sem coleção. Sem ela não consigo dizer o que falta craftar nem que decks já consegues montar. Atualiza-a a partir do jogo no separador Importar.' }),
     h('div', { class: 'row' },
       S.collCount > 0 ? h('button', { class: 'btn', type: 'button', style: 'min-height:40px', text: 'Ver coleção', onclick: function () { S.tab = 'coll'; render(); window.scrollTo(0, 0); } }) : null,
@@ -1274,12 +1274,27 @@ async function loadCollection(progress) {
   var rows = S.cat || await loadCatalog(progress);
   var byId = {}, byOr = {};
   rows.forEach(function (c) { byId[c.arena_id] = c; (byOr[c.oracle_id] = byOr[c.oracle_id] || []).push(c); });
-  var qty = {}, list = [], unknown = 0;
+  var alias = {};   // ids do Arena fora do catálogo (estilos alternativos, cartas «A-» do Alchemy…) ligados à carta a que pertencem
+  try {
+    var ar = await q(sb.from('arena_aliases').select('arena_id,oracle_id').not('oracle_id', 'is', null));
+    (ar.data || []).forEach(function (a) { alias[a.arena_id] = a.oracle_id; });
+  } catch (e) { /* sem equivalências: fica só o catálogo */ }
+  var qty = {}, upd = {}, unknown = 0;
   qrows.forEach(function (x) {
+    if (!(x.quantity > 0)) return;
     var c = byId[x.arena_id];
+    if (!c && alias[x.arena_id] && byOr[alias[x.arena_id]]) c = bestPrint(byOr[alias[x.arena_id]], {});
     if (!c) { unknown++; return; }
-    if (x.quantity > 0) { qty[x.arena_id] = x.quantity; list.push(Object.assign({}, c, { quantity: x.quantity, updated_at: x.updated_at || '' })); }
+    qty[c.arena_id] = (qty[c.arena_id] || 0) + x.quantity;
+    if ((x.updated_at || '') > (upd[c.arena_id] || '')) upd[c.arena_id] = x.updated_at || '';
   });
+  // «Tenho»: uma entrada por carta (somando todas as edições e estilos), igual ao «Faltam»
+  var byO = {};
+  Object.keys(qty).forEach(function (id) {
+    var c = byId[id], g = byO[c.oracle_id] = byO[c.oracle_id] || { q: 0, best: c, bq: 0, u: '' };
+    g.q += qty[id]; if (qty[id] > g.bq) { g.bq = qty[id]; g.best = c; } if ((upd[id] || '') > g.u) g.u = upd[id];
+  });
+  var list = Object.keys(byO).map(function (o) { return Object.assign({}, byO[o].best, { quantity: byO[o].q, updated_at: byO[o].u }); });
   S.cat = rows;
   return { list: list, unknown: unknown, qty: qty, byOr: byOr, miss: null, deck: null };
 }
@@ -1372,14 +1387,14 @@ function paintCollection(body) {
     all.forEach(function (c) { copies += c.quantity; if (c.quantity >= 4) playsets++; if (byR[c.rarity] != null) byR[c.rarity]++; });
     return h('section', { class: 'card' }, h('h3', { text: 'A tua coleção' }),
       h('div', { class: 'cstats' },
-        h('div', { class: 'stat big' }, h('b', { class: 'num', text: all.length.toLocaleString('pt-PT') }), h('span', { text: 'Diferentes' })),
+        h('div', { class: 'stat big' }, h('b', { class: 'num', text: all.length.toLocaleString('pt-PT') }), h('span', { text: 'Cartas diferentes' })),
         h('div', { class: 'stat big' }, h('b', { class: 'num', text: copies.toLocaleString('pt-PT') }), h('span', { text: 'Cópias' })),
         h('div', { class: 'stat big' }, h('b', { class: 'num', text: playsets.toLocaleString('pt-PT') }), h('span', { text: 'Com 4×' }))),
       h('div', { class: 'cbar', style: 'margin-top:12px' }, ['common', 'uncommon', 'rare', 'mythic'].map(function (k) {
         return h('div', { class: 'r' }, h('span', null, h('i', { class: 'dot ' + k }), ' ' + RARITY[k] + 's'),
           h('div', { class: 'tr' }, h('i', { class: k, style: 'width:' + Math.max(2, Math.round(100 * byR[k] / Math.max(1, all.length))) + '%' })), h('b', { class: 'num', text: byR[k] }));
       })),
-      co.unknown ? h('p', { class: 'muted small', style: 'margin:10px 0 0', text: co.unknown + ' cartas da coleção ainda não existem no catálogo da app e não aparecem aqui.' }) : null);
+      co.unknown ? h('p', { class: 'muted small', style: 'margin:10px 0 0', text: co.unknown + ' registos da coleção ainda não estão ligados a uma carta do catálogo e não aparecem aqui.' }) : null);
   }
   // Custo em wildcards do que está filtrado, contra a carteira
   function craftPanel() {
@@ -1940,7 +1955,7 @@ function viewImport() {
   } });
   out.appendChild(h('section', { class: 'card stack', style: 'padding:14px' },
     h('h3', { text: 'Coleção' }),
-    h('p', { class: 'small muted', text: S.collCount > 0 ? 'Tens ' + S.collCount + ' cartas diferentes registadas.' : 'Ainda sem coleção. Importa-a aqui; depois a app mostra o que falta craftar em cada deck.' }),
+    h('p', { class: 'small muted', text: S.collCount > 0 ? 'Tens ' + S.collCount + ' edições de cartas registadas (a Coleção junta as edições da mesma carta).' : 'Ainda sem coleção. Importa-a aqui; depois a app mostra o que falta craftar em cada deck.' }),
     h('details', { class: 'note' }, h('summary', { text: 'Como atualizar a coleção do Arena (no PC)', style: 'cursor:pointer;font-weight:600' }),
       h('div', { class: 'small', style: 'margin-top:8px;display:grid;gap:6px' },
         h('div', { text: 'O Arena já não escreve a coleção no Player.log, por isso uma ferramenta tem de a ler da memória do jogo. Isto só se faz no PC: a app não consegue abrir programas e o telemóvel não alcança o PC.' }),
@@ -2019,7 +2034,7 @@ function syncSummary(res) {
   var out = [], d = res.decks, c = res.collection;
   if (res.wallet) out.push('Carteira atualizada.');
   if (d) out.push('Decks: ' + d.received + ' lidos do jogo · ' + d.new + ' novos · ' + d.updated + ' atualizados · ' + d.unchanged + ' sem alterações' + (d.adopted ? ' · ' + d.adopted + ' ligados a decks que já tinhas' : '') + (d.removed ? ' · ' + d.removed + ' removidos' : '') + '.');
-  if (c) out.push('Coleção: ' + c.received + ' cartas diferentes lidas · ' + c.changed + ' alteradas · ' + c.removed + ' removidas · ' + c.total + ' no total' + (c.unknown_in_catalog ? ' (' + c.unknown_in_catalog + ' ainda não existem no catálogo da app)' : '') + '.');
+  if (c) out.push('Coleção: ' + c.received + ' edições lidas · ' + c.changed + ' alteradas · ' + c.removed + ' removidas · ' + c.total + ' no total' + (c.unknown_in_catalog ? ' (' + c.unknown_in_catalog + ' ainda não existem no catálogo da app)' : '') + '.');
   if (c && c.deck_check && c.deck_check.cards) out.push('Verificação: ' + c.deck_check.covered + ' de ' + c.deck_check.cards + ' cartas dos teus decks estão cobertas pela coleção (terrenos básicos não contam).');
   return out;
 }
