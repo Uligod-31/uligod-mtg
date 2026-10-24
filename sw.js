@@ -18,8 +18,9 @@
  * v14: cartão «Coleção» com os passos do Tapps Tracker (como administrador).
  * v15: «Atualizar do jogo» (ponte do PC): pedido a partir da app, progresso em tempo real e resumo; ligar/desligar PC.
  * v16: aviso de que o Tapps Tracker precisa de ter registado um jogo para encontrar a coleção.
- * v17: resumo da sincronização com a verificação dos decks contra a coleção (leitor próprio da coleção na ponte). */
-var CACHE = 'uligod-mtg-shell-v17';
+ * v17: resumo da sincronização com a verificação dos decks contra a coleção (leitor próprio da coleção na ponte).
+ * v18: nova paleta (azul, cinzento escuro e fúcsia) e separador Coleção (galeria com filtros, como no Arena). */
+var CACHE = 'uligod-mtg-shell-v18';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#14181f">
+<meta name="theme-color" content="#15161a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Üligod's MTG">
@@ -18,7 +18,7 @@
   var t = 'dark';
   try { var s = localStorage.getItem('uligod-theme'); if (s === 'light' || s === 'dark') t = s; } catch (e) { /* sem armazenamento: fica escuro */ }
   document.documentElement.setAttribute('data-theme', t);
-  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'light' ? '#eef1f4' : '#14181f');
+  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'light' ? '#eef0f6' : '#15161a');
 })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,9 +27,10 @@
 <style>
 /* Tokens. Layout: uma coluna estreita para telemóvel, navegação em baixo, cartões de leitura rápida. */
 :root {
-  --bg: #eef1f4; --surface: #ffffff; --surface-2: #e6eaee; --line: #d3d9df;
-  --fg: #151a21; --fg-2: #4b5563; --fg-3: #6b7480;
-  --accent: #1d7a6c; --accent-fg: #ffffff; --accent-soft: #d6ede8;
+  --bg: #eef0f6; --surface: #ffffff; --surface-2: #e7e9f1; --line: #d5d9e4;
+  --fg: #16181f; --fg-2: #4a4f5c; --fg-3: #6b7080;
+  --accent: #2a5fe0; --accent-fg: #ffffff; --accent-soft: #dce6fc;
+  --hot: #c8179f; --hot-soft: #fbdcf3; --grad: linear-gradient(135deg, #2a5fe0 0%, #7a3fd6 55%, #c8179f 100%);
   --ok: #1f7a46; --ok-soft: #d9efe1; --warn: #9a6300; --warn-soft: #f6e8c6; --bad: #b3261e; --bad-soft: #f8dcda;
   --r-common: #6b7480; --r-uncommon: #4f86a8; --r-rare: #b07d1a; --r-mythic: #c0502a;
   --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -38,9 +39,10 @@
 }
 /* Tema: escuro por defeito; o botão no topo alterna e a escolha fica guardada (ver script no início). */
 :root[data-theme="dark"] {
-  --bg: #0f1318; --surface: #171c23; --surface-2: #202731; --line: #2b3440;
-  --fg: #e8ecf0; --fg-2: #aab3bd; --fg-3: #818b97;
-  --accent: #3fb8a5; --accent-fg: #06201b; --accent-soft: #15332e;
+  --bg: #15161a; --surface: #1e2025; --surface-2: #2a2c33; --line: #373a43;
+  --fg: #eceef3; --fg-2: #b0b4c0; --fg-3: #858a98;
+  --accent: #5b92ff; --accent-fg: #ffffff; --accent-soft: #1d2b4d;
+  --hot: #ff4fd8; --hot-soft: #45163b; --grad: linear-gradient(135deg, #3b74f2 0%, #8a4bea 55%, #e02bc0 100%);
   --ok: #55c783; --ok-soft: #14301f; --warn: #e2ac45; --warn-soft: #37290c; --bad: #f0786f; --bad-soft: #3a1815;
   --r-common: #8a94a0; --r-uncommon: #6fa8cc; --r-rare: #d6a437; --r-mythic: #e0714a;
   color-scheme: dark;
@@ -65,6 +67,7 @@ h2 { font-size: 20px; } h3 { font-size: 13px; text-transform: uppercase; letter-
 
 /* topo */
 .top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding-top: env(safe-area-inset-top, 0px); }
+.top::after { content: ""; display: block; height: 2px; background: var(--grad); border-radius: 2px; }
 .top-in { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
 .brand { font-family: var(--font-cond); font-weight: 600; font-size: 18px; line-height: 1.1; }
 .brand small { display: block; font-family: var(--font); font-weight: 400; font-size: 12px; color: var(--fg-3); }
@@ -77,10 +80,11 @@ nav.tabs {
   padding: 6px max(8px, env(safe-area-inset-left, 0px)) calc(6px + env(safe-area-inset-bottom, 0px));
   display: flex; justify-content: center;
 }
-nav.tabs .in { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; width: 100%; max-width: 640px; }
+nav.tabs .in { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; width: 100%; max-width: 640px; }
 nav.tabs button { background: none; border: 0; border-radius: 10px; padding: 8px 4px; color: var(--fg-3); font-size: 12px; display: grid; gap: 2px; justify-items: center; }
 nav.tabs button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-nav.tabs button[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+nav.tabs button[aria-current="page"] { color: var(--hot); background: var(--hot-soft); }
+nav.tabs button[aria-current="page"]::after { content: ""; position: absolute; left: 28%; right: 28%; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--grad); }
 
 /* cartões e listas */
 .stack { display: grid; gap: 14px; padding-top: 4px; }
@@ -94,18 +98,19 @@ nav.tabs button[aria-current="page"] { color: var(--accent); background: var(--a
 .stat span { font-size: 11.5px; white-space: nowrap; color: var(--fg-2); }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; background: var(--surface-2); color: var(--fg-2); white-space: nowrap; }
 .chip.ok { background: var(--ok-soft); color: var(--ok); } .chip.warn { background: var(--warn-soft); color: var(--warn); }
-.chip.bad { background: var(--bad-soft); color: var(--bad); } .chip.acc { background: var(--accent-soft); color: var(--accent); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); } .chip.acc { background: var(--accent-soft); color: var(--accent); } .chip.hot { background: var(--hot-soft); color: var(--hot); }
 .filters { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; scrollbar-width: none; }
 .filters::-webkit-scrollbar { display: none; }
 .filters button { flex: none; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--fg-2); }
-.filters button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.filters button[aria-pressed="true"] { background: var(--grad); border-color: transparent; color: #fff; }
 input[type=text], input[type=email], input[type=password], input[type=search], select, textarea {
   width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px;
 }
 textarea { min-height: 140px; font-family: var(--mono); font-size: 13px; }
 label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
-.btn { background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 10px; padding: 11px 16px; font-weight: 600; min-height: 44px; }
+.btn { background: var(--grad); color: #fff; border: 0; border-radius: 10px; padding: 11px 16px; font-weight: 600; min-height: 44px; }
 .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.btn.ghost:hover { border-color: var(--hot); color: var(--hot); }
 .btn:disabled { opacity: .5; cursor: default; }
 .list { display: grid; gap: 8px; }
 .deck { display: grid; gap: 6px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
@@ -123,7 +128,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .cl .n { overflow-wrap: anywhere; }
 .curve { display: flex; align-items: flex-end; gap: 6px; height: 72px; }
 .curve div { flex: 1; display: grid; justify-items: center; align-content: end; gap: 3px; height: 100%; font: 12px var(--mono); color: var(--fg-3); }
-.curve i { display: block; width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
+.curve i { display: block; width: 100%; background: var(--grad); border-radius: 3px 3px 0 0; min-height: 2px; }
 .sheet { position: fixed; inset: 0; z-index: 20; background: var(--bg); overflow-y: auto; padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-left, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
 .sheet .bar { position: sticky; top: 0; background: var(--bg); padding: 12px 0; display: flex; align-items: center; gap: 10px; z-index: 2; }
 .back { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-height: 40px; padding: 0 12px; }
@@ -193,13 +198,37 @@ nav.tabs button { position: relative; }
 .qr { width: min(100%, 220px); aspect-ratio: 1; margin: 0 auto; background: #fff; border-radius: 10px; padding: 8px; display: block; }
 .secret { font: 500 13px var(--mono); overflow-wrap: anywhere; text-align: center; user-select: all; }
 .sync-prog { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
-.sync-prog i { display: block; height: 100%; background: var(--accent); transition: width .5s; }
+.sync-prog i { display: block; height: 100%; background: var(--grad); transition: width .5s; }
 .sync-res { display: grid; gap: 4px; font-size: 13.5px; }
 .code-box { font: 500 12.5px var(--mono); overflow-wrap: anywhere; background: var(--surface-2); border-radius: 10px; padding: 10px; user-select: all; }.brand-head { display: grid; justify-items: center; gap: 14px; text-align: center; }
 .brand-head h1 { font-size: 26px; }
 .brand-head .logo { width: 112px; height: 112px; border-radius: 24%; display: block; box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
 .brand-head p { margin: 0; max-width: 34ch; }
 .code-in { text-align: center; font: 600 22px var(--mono); letter-spacing: .3em; }
+/* coleção (estilo galeria do Arena) */
+.cgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }
+.cc { position: relative; display: block; width: 100%; padding: 0; background: none; border: 0; text-align: left; }
+.cc .im { position: relative; display: block; aspect-ratio: 488 / 680; border-radius: 4.75% / 3.4%; background: var(--surface-2); overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); transition: transform .12s, box-shadow .12s; }
+.cc:hover .im, .cc:focus-visible .im { transform: translateY(-2px); box-shadow: 0 0 0 2px var(--hot), 0 6px 16px rgba(0, 0, 0, .45); }
+.cc img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.cc .fb { position: absolute; inset: 0; display: grid; place-items: center; padding: 6px; text-align: center; font-size: 12px; color: var(--fg-2); }
+.cc .qb { position: absolute; right: 5px; top: 5px; min-width: 26px; padding: 2px 6px; border-radius: 999px; background: rgba(12, 13, 17, .86); color: #fff; font: 600 12px/18px var(--mono); text-align: center; border: 1px solid rgba(255, 255, 255, .28); }
+.cc .qb.full { background: var(--grad); border-color: transparent; }
+.cc .rb { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--r-common); }
+.cc .rb.uncommon { background: var(--r-uncommon); } .cc .rb.rare { background: var(--r-rare); } .cc .rb.mythic { background: var(--r-mythic); }
+.cc .nm { margin-top: 4px; font-size: 11.5px; line-height: 1.25; color: var(--fg-2); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cfil { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.cfil button { min-width: 38px; min-height: 38px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg-2); font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.cfil button[aria-pressed="true"] { border-color: var(--hot); box-shadow: 0 0 0 1px var(--hot) inset; color: var(--fg); background: var(--hot-soft); }
+.cfil .sym { width: 22px; height: 22px; }
+.cmore { display: block; margin: 14px auto 0; }
+.cstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat.big b { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cbar { display: grid; gap: 6px; }
+.cbar .r { display: grid; grid-template-columns: 74px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; color: var(--fg-2); }
+.cbar .tr { height: 8px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.cbar .tr i { display: block; height: 100%; background: var(--r-common); border-radius: 6px; }
+.cbar .tr i.uncommon { background: var(--r-uncommon); } .cbar .tr i.rare { background: var(--r-rare); } .cbar .tr i.mythic { background: var(--r-mythic); }
 @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translateY(14px); opacity: .6; } } .cm-box { animation: pop .14s ease-out; } @keyframes pop { from { transform: scale(.97); opacity: .6; } } }
 </style>
 </head>
@@ -359,13 +388,13 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "17";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "18";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 var $app = document.getElementById('app');
-var S = { session: null, tab: 'home', decks: null, wallet: null, events: null, collCount: null, fmt: 'all', sort: 'name', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {},
+var S = { session: null, tab: 'home', coll: null, cq: { q: '', col: [], rar: '', typ: '', set: '', own: '', sort: 'name' }, cshow: 60, decks: null, wallet: null, events: null, collCount: null, fmt: 'all', sort: 'name', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {},
   offline: false, snapAt: null, needMfa: false, recovery: /type=recovery/.test(location.hash) };
 
 /* ---------- utilitários ---------- */
@@ -466,7 +495,7 @@ function curTheme() { return document.documentElement.getAttribute('data-theme')
 function setTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem('uligod-theme', t); } catch (e) { /* ignora */ }
-  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'light' ? '#eef1f4' : '#14181f');
+  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'light' ? '#eef0f6' : '#15161a');
 }
 function themeBtn() {
   var b = h('button', { type: 'button', class: 'tbtn', onclick: function () { setTheme(curTheme() === 'dark' ? 'light' : 'dark'); paint(); } });
@@ -544,7 +573,8 @@ function icon(name) {
     home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',
     deck: 'M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2zM9 8h6M9 12h6',
     bell: 'M6 9a6 6 0 1112 0c0 6 2 7 2 7H4s2-1 2-7M10 20a2 2 0 004 0',
-    up: 'M12 16V4M7 9l5-5 5 5M5 20h14'
+    up: 'M12 16V4M7 9l5-5 5 5M5 20h14',
+    coll: 'M8 3h10a2 2 0 012 2v12M5 7h10a2 2 0 012 2v11a1 1 0 01-1 1H7a2 2 0 01-2-2V7zM9 12h4M9 16h4'
   }[name];
   var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
@@ -836,7 +866,10 @@ function fillCardExtras(v, item, full) {
   });
   if (full) v.leg.replaceChildren(h('h3', { text: 'Legalidade' }), h('div', { class: 'row', style: 'flex-wrap:wrap' }, chips),
     h('div', { class: 'muted small', text: 'Dados do Scryfall; a banlist da app (separador Alertas) pode ser mais recente. Confirma no Arena.' }));
-  if (item.quantity != null) {
+  if (item.quantity != null && !item.zone) {   // vem da coleção
+    v.own.replaceChildren(h('h3', { text: 'Na tua coleção' }), h('div', { class: 'row', style: 'flex-wrap:wrap' },
+      h('span', { class: 'chip num ' + (item.quantity >= 4 ? 'hot' : 'acc'), text: item.quantity + '× ' + (item.quantity >= 4 ? '(jogo completo)' : 'cópias') })));
+  } else if (item.quantity != null) {
     var zl = { main: 'main', side: 'sideboard', command: 'comandante', companion: 'companheiro' }[item.zone] || item.zone;
     var st = item.status;
     v.own.replaceChildren(h('h3', { text: 'Neste deck' }), h('div', { class: 'row', style: 'flex-wrap:wrap' },
@@ -891,7 +924,7 @@ async function loadAll() {
       q(sb.from('calendar_events').select('*').order('event_date')),
       q(sb.from('user_collection').select('arena_id', { count: 'exact', head: true }))
     ]);
-    S.decks = res[0].data || []; S.wallet = res[1].data; S.events = res[2].data || []; S.collCount = res[3].count || 0;
+    S.decks = res[0].data || []; S.wallet = res[1].data; S.events = res[2].data || []; S.collCount = res[3].count || 0; S.coll = null;
     S.offline = false; S.snapAt = null;
     KV.set('snap', { uid: S.session.user.id, t: Date.now(), decks: S.decks, wallet: S.wallet, events: S.events, collCount: S.collCount });
   } catch (e) {
@@ -1087,7 +1120,7 @@ function renderAuth(msg) {
 
 /* ---------- estrutura principal ---------- */
 function shell(content) {
-  var tabs = [['home', 'Início', 'home'], ['decks', 'Decks', 'deck'], ['alerts', 'Alertas', 'bell'], ['import', 'Importar', 'up']];
+  var tabs = [['home', 'Início', 'home'], ['decks', 'Decks', 'deck'], ['coll', 'Coleção', 'coll'], ['alerts', 'Alertas', 'bell'], ['import', 'Importar', 'up']];
   var nav = h('nav', { class: 'tabs', 'aria-label': 'Secções' }, h('div', { class: 'in' }, tabs.map(function (t) {
     var n = t[0] === 'alerts' ? alertCount() : 0;
     return h('button', { type: 'button', 'aria-current': S.tab === t[0] ? 'page' : null, onclick: function () { S.tab = t[0]; render(); window.scrollTo(0, 0); } }, icon(t[2]), t[1],
@@ -1114,7 +1147,7 @@ function render() {
   if (S.recovery) return renderRecovery();
   if (S.needMfa) return renderMfaVerify();
   if (!S.decks) { shell(h('div', { class: 'card', text: 'A carregar…' })); return; }
-  var views = { home: viewHome, decks: viewDecks, alerts: viewAlerts, import: viewImport };
+  var views = { home: viewHome, decks: viewDecks, coll: viewCollection, alerts: viewAlerts, import: viewImport };
   var v = views[S.tab]();
   if (S.offline) v.insertBefore(offlineNote(), v.firstChild);
   shell(v);
@@ -1158,7 +1191,9 @@ function viewHome() {
     S.collCount > 0
       ? h('p', null, h('b', { class: 'num', text: S.collCount }), ' cartas diferentes registadas.')
       : h('p', { class: 'muted', text: 'Ainda sem coleção. Sem ela não consigo dizer o que falta craftar nem que decks já consegues montar. Atualiza-a a partir do jogo no separador Importar.' }),
-    h('button', { class: 'btn ghost', type: 'button', style: 'min-height:40px', text: 'Atualizar do jogo', onclick: function () { S.tab = 'import'; render(); window.scrollTo(0, 0); } })));
+    h('div', { class: 'row' },
+      S.collCount > 0 ? h('button', { class: 'btn', type: 'button', style: 'min-height:40px', text: 'Ver coleção', onclick: function () { S.tab = 'coll'; render(); window.scrollTo(0, 0); } }) : null,
+      h('button', { class: 'btn ghost', type: 'button', style: 'min-height:40px', text: 'Atualizar do jogo', onclick: function () { S.tab = 'import'; render(); window.scrollTo(0, 0); } }))));
 
   out.appendChild(h('section', { class: 'card' }, h('h3', { text: 'Próximas datas' }),
     next.length ? next.map(evRow) : h('p', { class: 'muted', text: 'Sem datas registadas.' })));
@@ -1176,6 +1211,154 @@ function evRow(e) {
         h('span', { class: 'muted', text: dd === 0 ? 'hoje' : dd > 0 ? 'em ' + dd + ' dias' : 'há ' + (-dd) + ' dias' })),
       e.description ? h('div', { class: 'muted small', text: e.description }) : null,
       e.source_url ? h('a', { href: e.source_url, target: '_blank', rel: 'noopener noreferrer', class: 'small', text: 'Fonte' }) : null));
+}
+
+/* ---------- Coleção (galeria à maneira do Arena) ---------- */
+var C_SEL = 'arena_id,name,set_code,collector_number,rarity,mana_cost,cmc,type_line,colors,image_uri,oracle_id';
+var C_RANK = { common: 0, uncommon: 1, rare: 2, mythic: 3 };
+var C_TYPES = [['Creature', 'Criaturas'], ['Instant', 'Mágicas instantâneas'], ['Sorcery', 'Feitiços'], ['Enchantment', 'Encantamentos'], ['Artifact', 'Artefactos'], ['Planeswalker', 'Planeswalkers'], ['Battle', 'Batalhas'], ['Land', 'Terrenos']];
+var C_COLORS = [['W', 'Branco'], ['U', 'Azul'], ['B', 'Preto'], ['R', 'Vermelho'], ['G', 'Verde'], ['M', 'Multicolor'], ['C', 'Incolor']];
+
+// Junta as quantidades (user_collection) com o catálogo (cards). O catálogo já visto fica em cache no aparelho: só se pedem as cartas novas.
+async function loadCollection() {
+  var uid = S.session.user.id, rows = [];
+  for (var from = 0; ; from += 1000) {
+    var r = await q(sb.from('user_collection').select('arena_id,quantity,updated_at').eq('user_id', uid).order('arena_id').range(from, from + 999));
+    (r.data || []).forEach(function (x) { rows.push(x); });
+    if (!r.data || r.data.length < 1000) break;
+  }
+  var cache = (await KV.get('collcards')) || {}, missing = [];
+  rows.forEach(function (x) { if (!cache[x.arena_id]) missing.push(x.arena_id); });
+  var chunks = [];
+  for (var i = 0; i < missing.length; i += 150) chunks.push(missing.slice(i, i + 150));
+  for (var g = 0; g < chunks.length; g += 4) {
+    await Promise.all(chunks.slice(g, g + 4).map(async function (ids) {
+      var rc = await q(sb.from('cards').select(C_SEL).in('arena_id', ids));
+      (rc.data || []).forEach(function (c) { cache[c.arena_id] = c; });
+    }));
+  }
+  if (missing.length) KV.set('collcards', cache);
+  var list = [], unknown = 0;
+  rows.forEach(function (x) {
+    var c = cache[x.arena_id];
+    if (!c) { unknown++; return; }
+    list.push({ arena_id: c.arena_id, name: c.name, set_code: c.set_code, collector_number: c.collector_number, rarity: c.rarity, mana_cost: c.mana_cost, cmc: Number(c.cmc) || 0,
+      type_line: c.type_line || '', colors: c.colors || [], image_uri: c.image_uri, oracle_id: c.oracle_id, quantity: x.quantity, updated_at: x.updated_at || '' });
+  });
+  return { list: list, unknown: unknown };
+}
+function cColorOk(c, sel) {
+  if (!sel.length) return true;
+  var cs = c.colors, land = /\bLand\b/.test(c.type_line);
+  return sel.some(function (k) {
+    if (k === 'M') return cs.length > 1;
+    if (k === 'C') return cs.length === 0 && !land;
+    return cs.indexOf(k) !== -1;
+  });
+}
+function viewCollection() {
+  var out = h('div', { class: 'stack' });
+  if (!(S.collCount > 0)) {
+    out.appendChild(h('section', { class: 'card' }, h('h3', { text: 'Coleção' }),
+      h('p', { class: 'muted', text: 'Ainda sem coleção. Importa-a a partir do jogo e depois podes folheá-la aqui, como no Arena.' }),
+      h('button', { class: 'btn', type: 'button', text: 'Atualizar do jogo', onclick: function () { S.tab = 'import'; render(); window.scrollTo(0, 0); } })));
+    return out;
+  }
+  var body = h('div', { class: 'stack', style: 'padding:0' });
+  out.appendChild(body);
+  if (S.coll) { paintCollection(body); return out; }
+  fill(body, h('div', { class: 'card', role: 'status', text: 'A abrir a tua coleção… (' + S.collCount + ' cartas diferentes)' }));
+  var mine = S.session && S.session.user.id;
+  loadCollection().then(function (res) {
+    if (!S.session || S.session.user.id !== mine) return;
+    S.coll = res; if (S.tab === 'coll' && body.isConnected) paintCollection(body);
+  }, function (e) {
+    if (body.isConnected) fill(body, h('div', { class: 'note bad', text: 'Não consegui abrir a coleção: ' + (e && e.message ? e.message : e) }),
+      h('button', { class: 'btn ghost', type: 'button', text: 'Tentar de novo', onclick: function () { render(); } }));
+  });
+  return out;
+}
+function paintCollection(body) {
+  var all = S.coll.list, F = S.cq;
+  var copies = 0, playsets = 0, byR = { common: 0, uncommon: 0, rare: 0, mythic: 0 }, sets = {};
+  all.forEach(function (c) { copies += c.quantity; if (c.quantity >= 4) playsets++; if (byR[c.rarity] != null) byR[c.rarity]++; sets[c.set_code] = (sets[c.set_code] || 0) + 1; });
+
+  var stats = h('section', { class: 'card' }, h('h3', { text: 'A tua coleção' }),
+    h('div', { class: 'cstats' },
+      h('div', { class: 'stat big' }, h('b', { class: 'num', text: all.length.toLocaleString('pt-PT') }), h('span', { text: 'Diferentes' })),
+      h('div', { class: 'stat big' }, h('b', { class: 'num', text: copies.toLocaleString('pt-PT') }), h('span', { text: 'Cópias' })),
+      h('div', { class: 'stat big' }, h('b', { class: 'num', text: playsets.toLocaleString('pt-PT') }), h('span', { text: 'Com 4×' }))),
+    h('div', { class: 'cbar', style: 'margin-top:12px' }, ['common', 'uncommon', 'rare', 'mythic'].map(function (k) {
+      return h('div', { class: 'r' }, h('span', null, h('i', { class: 'dot ' + k }), ' ' + RARITY[k] + 's'),
+        h('div', { class: 'tr' }, h('i', { class: k, style: 'width:' + Math.max(2, Math.round(100 * byR[k] / Math.max(1, all.length))) + '%' })), h('b', { class: 'num', text: byR[k] }));
+    })),
+    S.coll.unknown ? h('p', { class: 'muted small', style: 'margin:10px 0 0', text: S.coll.unknown + ' cartas da coleção ainda não existem no catálogo da app e não aparecem aqui.' }) : null);
+
+  var count = h('span', { class: 'muted small' }), grid = h('div', { class: 'cgrid' }), more = h('button', { class: 'btn ghost cmore', type: 'button' });
+  var cur = [];
+  function apply() {
+    var qq = F.q.trim().toLowerCase();
+    cur = all.filter(function (c) {
+      if (qq && c.name.toLowerCase().indexOf(qq) === -1 && c.type_line.toLowerCase().indexOf(qq) === -1) return false;
+      if (F.rar && c.rarity !== F.rar) return false;
+      if (F.typ && c.type_line.indexOf(F.typ) === -1) return false;
+      if (F.set && c.set_code !== F.set) return false;
+      if (F.own === '4' ? c.quantity < 4 : F.own && c.quantity !== Number(F.own)) return false;
+      return cColorOk(c, F.col);
+    });
+    cur.sort(function (a, b) {
+      var n = a.name.localeCompare(b.name, 'pt');
+      if (F.sort === 'cmc') return a.cmc - b.cmc || n;
+      if (F.sort === 'rarity') return (C_RANK[b.rarity] || 0) - (C_RANK[a.rarity] || 0) || n;
+      if (F.sort === 'qty') return b.quantity - a.quantity || n;
+      if (F.sort === 'set') return a.set_code.localeCompare(b.set_code) || String(a.collector_number).localeCompare(String(b.collector_number), 'en', { numeric: true });
+      if (F.sort === 'recent') return b.updated_at.localeCompare(a.updated_at) || n;
+      return n;
+    });
+  }
+  function cell(c, i) {
+    var im = c.image_uri ? h('img', { src: imgUrl(c.image_uri, 'normal'), alt: c.name, loading: 'lazy', decoding: 'async',
+      onerror: function (e) { e.target.replaceWith(h('span', { class: 'fb', text: c.name })); } }) : h('span', { class: 'fb', text: c.name });
+    return h('button', { class: 'cc', type: 'button', 'aria-label': c.name + ', ' + c.quantity + ' cópias', onclick: function () { openCard(cur, cur.indexOf(c)); } },
+      h('span', { class: 'im' }, im, h('span', { class: 'qb' + (c.quantity >= 4 ? ' full' : ''), text: '×' + c.quantity }), h('span', { class: 'rb ' + c.rarity })),
+      h('span', { class: 'nm', text: c.name }));
+  }
+  function paintGrid() {
+    count.textContent = sentence(cur.length, 'carta', 'cartas') + ' · ' + cur.reduce(function (s, c) { return s + c.quantity; }, 0) + ' cópias';
+    var n = Math.min(S.cshow, cur.length);
+    fill(grid, cur.length ? cur.slice(0, n).map(cell) : null);
+    if (!cur.length) grid.appendChild(h('p', { class: 'muted', style: 'grid-column:1/-1', text: 'Nenhuma carta com estes filtros.' }));
+    more.hidden = n >= cur.length; more.textContent = 'Mostrar mais (' + (cur.length - n) + ')';
+  }
+  function refresh(keepShow) { if (!keepShow) S.cshow = 60; apply(); paintGrid(); }
+  more.onclick = function () { S.cshow += 90; paintGrid(); };
+
+  var search = h('input', { type: 'search', placeholder: 'Procurar carta ou tipo…', 'aria-label': 'Procurar na coleção', value: F.q, oninput: function (e) { F.q = e.target.value; refresh(); } });
+  function sel(label, key, opts) {
+    return h('select', { 'aria-label': label, onchange: function (e) { F[key] = e.target.value; refresh(); } },
+      opts.map(function (o) { return h('option', { value: o[0], selected: String(o[0]) === String(F[key]), text: o[1] }); }));
+  }
+  var colRow = h('div', { class: 'cfil', role: 'group', 'aria-label': 'Filtrar por cor' }, C_COLORS.map(function (k) {
+    var on = F.col.indexOf(k[0]) !== -1;
+    var b = h('button', { type: 'button', 'aria-pressed': on ? 'true' : 'false', 'aria-label': k[1], title: k[1], onclick: function () {
+      var i = F.col.indexOf(k[0]); if (i === -1) F.col.push(k[0]); else F.col.splice(i, 1);
+      b.setAttribute('aria-pressed', i === -1 ? 'true' : 'false'); refresh();
+    } }, k[0] === 'M' ? 'Multi' : k[0] === 'C' ? 'Incolor' : h('span', { class: 'sym ' + k[0], text: k[0] }));
+    return b;
+  }));
+  var setOpts = [['', 'Set: todos']].concat(Object.keys(sets).sort().map(function (s) { return [s, s.toUpperCase() + ' (' + sets[s] + ')']; }));
+  var filters = h('div', { class: 'stack', style: 'padding:0;gap:8px' }, search, colRow,
+    h('div', { class: 'row', style: 'flex-wrap:wrap' },
+      sel('Raridade', 'rar', [['', 'Raridade: todas'], ['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']]),
+      sel('Tipo', 'typ', [['', 'Tipo: todos']].concat(C_TYPES))),
+    h('div', { class: 'row', style: 'flex-wrap:wrap' },
+      sel('Set', 'set', setOpts),
+      sel('Cópias', 'own', [['', 'Cópias: todas'], ['1', '1 cópia'], ['2', '2 cópias'], ['3', '3 cópias'], ['4', '4 ou mais']])),
+    h('div', { class: 'row between' }, count,
+      sel('Ordenar', 'sort', [['name', 'Nome'], ['cmc', 'Custo de mana'], ['rarity', 'Raridade'], ['qty', 'Cópias'], ['set', 'Set'], ['recent', 'Mais recentes']])));
+  Array.prototype.forEach.call(filters.querySelectorAll('select'), function (s) { s.style.flex = '1 1 0'; s.style.minWidth = '0'; });
+  fill(body, stats, filters, grid, more);
+  refresh(true);
 }
 
 /* ---------- Decks ---------- */
@@ -1679,7 +1862,7 @@ function syncPoll() {
       var st = r.data.status;
       if (st === 'done' || st === 'error' || st === 'cancelled') {
         clearInterval(SYNC.timer); SYNC.req = null;
-        if (st === 'done') { try { await loadAll(); } catch (e) { /* ignora */ } toast('Atualizado a partir do jogo.'); if (S.tab === 'import' || S.tab === 'home' || S.tab === 'decks') { render(); return; } }
+        if (st === 'done') { try { await loadAll(); } catch (e) { /* ignora */ } toast('Atualizado a partir do jogo.'); if (S.tab === 'import' || S.tab === 'home' || S.tab === 'decks' || S.tab === 'coll') { render(); return; } }
       }
     } catch (e) { /* sem rede: tenta no próximo ciclo */ }
     paintSync();
