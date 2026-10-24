@@ -24,8 +24,9 @@
  * v20: cartas do ícone maiores (preenchem o fundo como os outros ícones).
  * v21: Coleção com Tenho / Faltam / Para os decks (custo de craft em wildcards contra a carteira).
  * v22: coleção coerente: ids do Arena fora do catálogo ligados à carta certa (tabela arena_aliases), «Tenho» junta as edições como o «Faltam».
- * v23: «Faltam» como no Arena: só as cartas que não tens (custo de 1 ou 4 cópias à escolha); «Completar 4×» à parte. */
-var CACHE = 'uligod-mtg-shell-v23';
+ * v23: «Faltam» como no Arena: só as cartas que não tens (custo de 1 ou 4 cópias à escolha); «Completar 4×» à parte.
+ * v24: ícones dos separadores Decks (caixa de deck) e Coleção (cartas de MTG). */
+var CACHE = 'uligod-mtg-shell-v24';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
