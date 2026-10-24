@@ -21,8 +21,9 @@
  * v17: resumo da sincronização com a verificação dos decks contra a coleção (leitor próprio da coleção na ponte).
  * v18: nova paleta (azul, cinzento escuro e fúcsia) e separador Coleção (galeria com filtros, como no Arena).
  * v19: ícones redesenhados na paleta (gerar-icones.ps1).
- * v20: cartas do ícone maiores (preenchem o fundo como os outros ícones). */
-var CACHE = 'uligod-mtg-shell-v20';
+ * v20: cartas do ícone maiores (preenchem o fundo como os outros ícones).
+ * v21: Coleção com Tenho / Faltam / Para os decks (custo de craft em wildcards contra a carteira). */
+var CACHE = 'uligod-mtg-shell-v21';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {

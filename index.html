@@ -217,6 +217,15 @@ nav.tabs button { position: relative; }
 .cc .rb { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--r-common); }
 .cc .rb.uncommon { background: var(--r-uncommon); } .cc .rb.rare { background: var(--r-rare); } .cc .rb.mythic { background: var(--r-mythic); }
 .cc .nm { margin-top: 4px; font-size: 11.5px; line-height: 1.25; color: var(--fg-2); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.seg button { min-height: 42px; border: 0; border-radius: 10px; background: none; color: var(--fg-2); font-weight: 600; font-size: 13.5px; padding: 0 6px; }
+.seg button[aria-pressed="true"] { background: var(--grad); color: #fff; box-shadow: 0 2px 10px rgba(224, 43, 192, .28); }
+.cc.gone img { filter: grayscale(.92) brightness(.62); }
+.cc.part img { filter: grayscale(.5) brightness(.82); }
+.cc .qb.need { background: var(--hot); color: #fff; border-color: transparent; font-size: 11px; }
+.cc .ql { position: absolute; left: 5px; bottom: 9px; padding: 1px 7px; border-radius: 999px; background: rgba(12, 13, 17, .86); color: #fff; font: 600 10.5px/16px var(--mono); border: 1px solid rgba(255, 255, 255, .25); }
+.fdet { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.fdet summary { cursor: pointer; font-weight: 600; color: var(--fg-2); font-size: 13.5px; }
 .cfil { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .cfil button { min-width: 38px; min-height: 38px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg-2); font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 .cfil button[aria-pressed="true"] { border-color: var(--hot); box-shadow: 0 0 0 1px var(--hot) inset; color: var(--fg); background: var(--hot-soft); }
@@ -388,13 +397,13 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "20";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "21";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 var $app = document.getElementById('app');
-var S = { session: null, tab: 'home', coll: null, cq: { q: '', col: [], rar: '', typ: '', set: '', own: '', sort: 'name' }, cshow: 60, decks: null, wallet: null, events: null, collCount: null, fmt: 'all', sort: 'name', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {},
+var S = { session: null, tab: 'home', coll: null, cq: { mode: 'own', q: '', col: [], rar: '', typ: '', set: '', own: '', fmt: '', ps: '', sort: 'name' }, cshow: 60, decks: null, wallet: null, events: null, collCount: null, fmt: 'all', sort: 'name', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {},
   offline: false, snapAt: null, needMfa: false, recovery: /type=recovery/.test(location.hash) };
 
 /* ---------- utilitários ---------- */
@@ -866,7 +875,13 @@ function fillCardExtras(v, item, full) {
   });
   if (full) v.leg.replaceChildren(h('h3', { text: 'Legalidade' }), h('div', { class: 'row', style: 'flex-wrap:wrap' }, chips),
     h('div', { class: 'muted small', text: 'Dados do Scryfall; a banlist da app (separador Alertas) pode ser mais recente. Confirma no Arena.' }));
-  if (item.quantity != null && !item.zone) {   // vem da coleção
+  if (item.craft) {   // «Faltam» / «Para os decks»
+    v.own.replaceChildren(h('h3', { text: 'A craftar' }), h('div', { class: 'row', style: 'flex-wrap:wrap' },
+      h('span', { class: 'chip num ' + (item.quantity ? 'acc' : ''), text: 'Tens ×' + item.quantity }),
+      h('span', { class: 'chip num hot', text: 'Faltam ' + item.missing }),
+      h('span', { class: 'chip', text: item.missing + ' wildcard' + (item.missing > 1 ? 's' : '') + ' ' + (RARITY[item.rarity] || item.rarity).toLowerCase() + (item.missing > 1 ? 's' : '') }),
+      item.decks ? h('span', { class: 'chip warn', text: 'Usada em ' + sentence(item.decks, 'deck', 'decks') }) : null));
+  } else if (item.quantity != null && !item.zone) {   // vem da coleção
     v.own.replaceChildren(h('h3', { text: 'Na tua coleção' }), h('div', { class: 'row', style: 'flex-wrap:wrap' },
       h('span', { class: 'chip num ' + (item.quantity >= 4 ? 'hot' : 'acc'), text: item.quantity + '× ' + (item.quantity >= 4 ? '(jogo completo)' : 'cópias') })));
   } else if (item.quantity != null) {
@@ -1213,40 +1228,105 @@ function evRow(e) {
       e.source_url ? h('a', { href: e.source_url, target: '_blank', rel: 'noopener noreferrer', class: 'small', text: 'Fonte' }) : null));
 }
 
-/* ---------- Coleção (galeria à maneira do Arena) ---------- */
-var C_SEL = 'arena_id,name,set_code,collector_number,rarity,mana_cost,cmc,type_line,colors,image_uri,oracle_id';
+/* ---------- Coleção (galeria à maneira do Arena: Tenho / Faltam / Para os meus decks) ---------- */
 var C_RANK = { common: 0, uncommon: 1, rare: 2, mythic: 3 };
 var C_TYPES = [['Creature', 'Criaturas'], ['Instant', 'Mágicas instantâneas'], ['Sorcery', 'Feitiços'], ['Enchantment', 'Encantamentos'], ['Artifact', 'Artefactos'], ['Planeswalker', 'Planeswalkers'], ['Battle', 'Batalhas'], ['Land', 'Terrenos']];
 var C_COLORS = [['W', 'Branco'], ['U', 'Azul'], ['B', 'Preto'], ['R', 'Vermelho'], ['G', 'Verde'], ['M', 'Multicolor'], ['C', 'Incolor']];
+var C_FMT = [['', 'Todos os formatos'], ['std', 'Standard'], ['alc', 'Alchemy'], ['his', 'Historic'], ['exp', 'Explorer'], ['tim', 'Timeless']];
+var C_MODES = [['own', 'Tenho'], ['miss', 'Faltam'], ['deck', 'Para os decks']];
+var WC_KEY = { common: 'wc_common', uncommon: 'wc_uncommon', rare: 'wc_rare', mythic: 'wc_mythic' };
+var CAT_SEL = 'arena_id,oracle_id,name,set_code,collector_number,rarity,mana_cost,cmc,type_line,colors,image_uri,std:legalities->>standard,alc:legalities->>alchemy,his:legalities->>historic,exp:legalities->>pioneer,tim:legalities->>timeless';
 
-// Junta as quantidades (user_collection) com o catálogo (cards). O catálogo já visto fica em cache no aparelho: só se pedem as cartas novas.
-async function loadCollection() {
-  var uid = S.session.user.id, rows = [];
+function legOk(v) { return v === 'legal' || v === 'restricted'; }
+function normCat(r) {
+  var L = r.legalities || {};
+  function lg(k, a) { return legOk(r[k] !== undefined ? r[k] : L[a]); }
+  return { arena_id: r.arena_id, oracle_id: r.oracle_id, name: r.name, set_code: r.set_code, collector_number: r.collector_number, rarity: r.rarity, mana_cost: r.mana_cost,
+    cmc: Number(r.cmc) || 0, type_line: r.type_line || '', colors: r.colors || [], image_uri: r.image_uri,
+    f: { std: lg('std', 'standard'), alc: lg('alc', 'alchemy'), his: lg('his', 'historic'), exp: lg('exp', 'pioneer'), tim: lg('tim', 'timeless') } };
+}
+// Catálogo completo de cartas do Arena (cerca de 20 mil). Fica no aparelho e só se volta a descarregar se o número de cartas mudar.
+async function loadCatalog(progress) {
+  var cnt = (await q(sb.from('cards').select('arena_id', { count: 'exact', head: true }).not('arena_id', 'is', null))).count || 0;
+  var cache = await KV.get('catalog18');
+  if (cache && cache.n === cnt && cache.rows && cache.rows.length) return cache.rows;
+  var pages = Math.max(1, Math.ceil(cnt / 1000)), rows = [], done = 0, parts = [];
+  for (var g = 0; g < pages; g += 4) {
+    var idx = [], k;
+    for (k = g; k < Math.min(pages, g + 4); k++) idx.push(k);
+    var res = await Promise.all(idx.map(function (p) {
+      return q(sb.from('cards').select(CAT_SEL).not('arena_id', 'is', null).order('arena_id').range(p * 1000, p * 1000 + 999));
+    }));
+    res.forEach(function (r) { parts.push(r.data || []); done++; });
+    if (progress) progress(done, pages);
+  }
+  parts.forEach(function (p) { p.forEach(function (r) { rows.push(normCat(r)); }); });
+  KV.set('catalog18', { n: cnt, rows: rows });
+  return rows;
+}
+async function loadCollection(progress) {
+  var uid = S.session.user.id, qrows = [];
   for (var from = 0; ; from += 1000) {
     var r = await q(sb.from('user_collection').select('arena_id,quantity,updated_at').eq('user_id', uid).order('arena_id').range(from, from + 999));
+    (r.data || []).forEach(function (x) { qrows.push(x); });
+    if (!r.data || r.data.length < 1000) break;
+  }
+  var rows = S.cat || await loadCatalog(progress);
+  var byId = {}, byOr = {};
+  rows.forEach(function (c) { byId[c.arena_id] = c; (byOr[c.oracle_id] = byOr[c.oracle_id] || []).push(c); });
+  var qty = {}, list = [], unknown = 0;
+  qrows.forEach(function (x) {
+    var c = byId[x.arena_id];
+    if (!c) { unknown++; return; }
+    if (x.quantity > 0) { qty[x.arena_id] = x.quantity; list.push(Object.assign({}, c, { quantity: x.quantity, updated_at: x.updated_at || '' })); }
+  });
+  S.cat = rows;
+  return { list: list, unknown: unknown, qty: qty, byOr: byOr, miss: null, deck: null };
+}
+function isBasic(c) { return /^Basic\b/.test(c.type_line); }
+function bestPrint(group, qty) {
+  var best = null;
+  group.forEach(function (c) {
+    var sc = (qty[c.arena_id] || 0) * 1e7 + (c.image_uri ? 1e6 : 0) + c.arena_id;
+    if (!best || sc > best.sc) best = { c: c, sc: sc };
+  });
+  return best.c;
+}
+function ownedOf(group, qty) { return group.reduce(function (s, c) { return s + (qty[c.arena_id] || 0); }, 0); }
+// Faltam: tudo o que tens menos de 4 vezes (somando as várias edições da mesma carta, como o Arena)
+function buildMiss(co) {
+  var out = [];
+  Object.keys(co.byOr).forEach(function (o) {
+    var g = co.byOr[o], first = g[0];
+    if (isBasic(first) || C_RANK[first.rarity] == null) return;
+    var own = ownedOf(g, co.qty);
+    if (own >= 4) return;
+    out.push(Object.assign({}, bestPrint(g, co.qty), { quantity: own, missing: 4 - own, craft: true }));
+  });
+  return out;
+}
+// Para os decks: o que falta para montares todos os teus decks (a mesma carta em vários decks conta uma vez: o máximo que algum deck pede)
+async function buildDeckMiss(co) {
+  var rows = [];
+  for (var from = 0; ; from += 1000) {
+    var r = await q(sb.from('deck_card_status').select('deck_id,oracle_id,missing').gt('missing', 0).order('oracle_id').range(from, from + 999));
     (r.data || []).forEach(function (x) { rows.push(x); });
     if (!r.data || r.data.length < 1000) break;
   }
-  var cache = (await KV.get('collcards')) || {}, missing = [];
-  rows.forEach(function (x) { if (!cache[x.arena_id]) missing.push(x.arena_id); });
-  var chunks = [];
-  for (var i = 0; i < missing.length; i += 150) chunks.push(missing.slice(i, i + 150));
-  for (var g = 0; g < chunks.length; g += 4) {
-    await Promise.all(chunks.slice(g, g + 4).map(async function (ids) {
-      var rc = await q(sb.from('cards').select(C_SEL).in('arena_id', ids));
-      (rc.data || []).forEach(function (c) { cache[c.arena_id] = c; });
-    }));
-  }
-  if (missing.length) KV.set('collcards', cache);
-  var list = [], unknown = 0;
+  var agg = {};
   rows.forEach(function (x) {
-    var c = cache[x.arena_id];
-    if (!c) { unknown++; return; }
-    list.push({ arena_id: c.arena_id, name: c.name, set_code: c.set_code, collector_number: c.collector_number, rarity: c.rarity, mana_cost: c.mana_cost, cmc: Number(c.cmc) || 0,
-      type_line: c.type_line || '', colors: c.colors || [], image_uri: c.image_uri, oracle_id: c.oracle_id, quantity: x.quantity, updated_at: x.updated_at || '' });
+    if (!(x.missing > 0)) return;
+    var a = agg[x.oracle_id] = agg[x.oracle_id] || { m: 0, d: {} };
+    if (x.missing > a.m) a.m = x.missing; a.d[x.deck_id] = 1;
   });
-  return { list: list, unknown: unknown };
+  var out = [];
+  Object.keys(agg).forEach(function (o) {
+    var g = co.byOr[o]; if (!g) return;
+    out.push(Object.assign({}, bestPrint(g, co.qty), { quantity: ownedOf(g, co.qty), missing: agg[o].m, decks: Object.keys(agg[o].d).length, craft: true }));
+  });
+  return out;
 }
+function cFmtOk(c, f) { return !f || c.f[f]; }
 function cColorOk(c, sel) {
   if (!sel.length) return true;
   var cs = c.colors, land = /\bLand\b/.test(c.type_line);
@@ -1267,9 +1347,10 @@ function viewCollection() {
   var body = h('div', { class: 'stack', style: 'padding:0' });
   out.appendChild(body);
   if (S.coll) { paintCollection(body); return out; }
-  fill(body, h('div', { class: 'card', role: 'status', text: 'A abrir a tua coleção… (' + S.collCount + ' cartas diferentes)' }));
+  var msg = h('div', { class: 'card', role: 'status', text: 'A abrir a tua coleção…' });
+  fill(body, msg);
   var mine = S.session && S.session.user.id;
-  loadCollection().then(function (res) {
+  loadCollection(function (a, b) { msg.textContent = 'A preparar o catálogo de cartas (só na primeira vez)… ' + Math.round(100 * a / b) + ' %'; }).then(function (res) {
     if (!S.session || S.session.user.id !== mine) return;
     S.coll = res; if (S.tab === 'coll' && body.isConnected) paintCollection(body);
   }, function (e) {
@@ -1279,60 +1360,116 @@ function viewCollection() {
   return out;
 }
 function paintCollection(body) {
-  var all = S.coll.list, F = S.cq;
-  var copies = 0, playsets = 0, byR = { common: 0, uncommon: 0, rare: 0, mythic: 0 }, sets = {};
-  all.forEach(function (c) { copies += c.quantity; if (c.quantity >= 4) playsets++; if (byR[c.rarity] != null) byR[c.rarity]++; sets[c.set_code] = (sets[c.set_code] || 0) + 1; });
+  var co = S.coll, F = S.cq, cur = [];
+  if (F.mode === 'miss' && !co.miss) co.miss = buildMiss(co);
+  function source() { return F.mode === 'miss' ? co.miss : F.mode === 'deck' ? co.deck : co.list; }
 
-  var stats = h('section', { class: 'card' }, h('h3', { text: 'A tua coleção' }),
-    h('div', { class: 'cstats' },
-      h('div', { class: 'stat big' }, h('b', { class: 'num', text: all.length.toLocaleString('pt-PT') }), h('span', { text: 'Diferentes' })),
-      h('div', { class: 'stat big' }, h('b', { class: 'num', text: copies.toLocaleString('pt-PT') }), h('span', { text: 'Cópias' })),
-      h('div', { class: 'stat big' }, h('b', { class: 'num', text: playsets.toLocaleString('pt-PT') }), h('span', { text: 'Com 4×' }))),
-    h('div', { class: 'cbar', style: 'margin-top:12px' }, ['common', 'uncommon', 'rare', 'mythic'].map(function (k) {
-      return h('div', { class: 'r' }, h('span', null, h('i', { class: 'dot ' + k }), ' ' + RARITY[k] + 's'),
-        h('div', { class: 'tr' }, h('i', { class: k, style: 'width:' + Math.max(2, Math.round(100 * byR[k] / Math.max(1, all.length))) + '%' })), h('b', { class: 'num', text: byR[k] }));
-    })),
-    S.coll.unknown ? h('p', { class: 'muted small', style: 'margin:10px 0 0', text: S.coll.unknown + ' cartas da coleção ainda não existem no catálogo da app e não aparecem aqui.' }) : null);
-
+  var head = h('div', { class: 'stack', style: 'padding:0' });
   var count = h('span', { class: 'muted small' }), grid = h('div', { class: 'cgrid' }), more = h('button', { class: 'btn ghost cmore', type: 'button' });
-  var cur = [];
+
+  function ownStats() {
+    var all = co.list, copies = 0, playsets = 0, byR = { common: 0, uncommon: 0, rare: 0, mythic: 0 };
+    all.forEach(function (c) { copies += c.quantity; if (c.quantity >= 4) playsets++; if (byR[c.rarity] != null) byR[c.rarity]++; });
+    return h('section', { class: 'card' }, h('h3', { text: 'A tua coleção' }),
+      h('div', { class: 'cstats' },
+        h('div', { class: 'stat big' }, h('b', { class: 'num', text: all.length.toLocaleString('pt-PT') }), h('span', { text: 'Diferentes' })),
+        h('div', { class: 'stat big' }, h('b', { class: 'num', text: copies.toLocaleString('pt-PT') }), h('span', { text: 'Cópias' })),
+        h('div', { class: 'stat big' }, h('b', { class: 'num', text: playsets.toLocaleString('pt-PT') }), h('span', { text: 'Com 4×' }))),
+      h('div', { class: 'cbar', style: 'margin-top:12px' }, ['common', 'uncommon', 'rare', 'mythic'].map(function (k) {
+        return h('div', { class: 'r' }, h('span', null, h('i', { class: 'dot ' + k }), ' ' + RARITY[k] + 's'),
+          h('div', { class: 'tr' }, h('i', { class: k, style: 'width:' + Math.max(2, Math.round(100 * byR[k] / Math.max(1, all.length))) + '%' })), h('b', { class: 'num', text: byR[k] }));
+      })),
+      co.unknown ? h('p', { class: 'muted small', style: 'margin:10px 0 0', text: co.unknown + ' cartas da coleção ainda não existem no catálogo da app e não aparecem aqui.' }) : null);
+  }
+  // Custo em wildcards do que está filtrado, contra a carteira
+  function craftPanel() {
+    var need = { common: 0, uncommon: 0, rare: 0, mythic: 0 }, n = 0, w = S.wallet || {};
+    cur.forEach(function (c) { if (need[c.rarity] != null) { need[c.rarity] += c.missing; n++; } });
+    var short = 0, tot = 0;
+    ['common', 'uncommon', 'rare', 'mythic'].forEach(function (k) { tot += need[k]; short += Math.max(0, need[k] - (w[WC_KEY[k]] || 0)); });
+    var title = F.mode === 'deck' ? 'Para montares os teus decks' : 'Para completares ' + (F.ps === 'zero' ? 'as que ainda não tens' : 'as 4 cópias');
+    var verdict = !tot ? 'Nada a craftar com estes filtros.' : !S.wallet ? 'Sem carteira registada: atualiza-a no separador Importar.' : short === 0 ? 'Tens wildcards para tudo isto!' : 'Faltam-te ' + short + ' wildcards (' + ['common', 'uncommon', 'rare', 'mythic'].map(function (k) { var s = Math.max(0, need[k] - (w[WC_KEY[k]] || 0)); return s ? s + ' ' + RARITY[k].toLowerCase() + (s > 1 ? 's' : '') : null; }).filter(Boolean).join(', ') + ').';
+    return h('section', { class: 'card' }, h('h3', { text: 'Custo de craft' }),
+      h('p', { style: 'margin:0 0 10px' }, h('b', { text: title }), ': ' + sentence(n, 'carta', 'cartas') + ', ' + tot + ' wildcards.'),
+      h('div', { class: 'cbar' }, ['common', 'uncommon', 'rare', 'mythic'].map(function (k) {
+        var have = w[WC_KEY[k]] || 0, pct = need[k] ? Math.min(100, Math.round(100 * have / need[k])) : 100;
+        return h('div', { class: 'r' }, h('span', null, h('i', { class: 'dot ' + k }), ' ' + RARITY[k] + 's'),
+          h('div', { class: 'tr' }, h('i', { class: k, style: 'width:' + Math.max(2, pct) + '%' })),
+          h('b', { class: 'num', style: have >= need[k] ? '' : 'color:var(--hot)', text: have + ' / ' + need[k] }));
+      })),
+      h('p', { class: 'small ' + (short === 0 && tot ? '' : 'muted'), style: 'margin:10px 0 0', text: verdict }));
+  }
+  var panel = h('div', { class: 'stack', style: 'padding:0' });
+
   function apply() {
-    var qq = F.q.trim().toLowerCase();
-    cur = all.filter(function (c) {
+    var src = source() || [], qq = F.q.trim().toLowerCase();
+    cur = src.filter(function (c) {
       if (qq && c.name.toLowerCase().indexOf(qq) === -1 && c.type_line.toLowerCase().indexOf(qq) === -1) return false;
       if (F.rar && c.rarity !== F.rar) return false;
       if (F.typ && c.type_line.indexOf(F.typ) === -1) return false;
       if (F.set && c.set_code !== F.set) return false;
-      if (F.own === '4' ? c.quantity < 4 : F.own && c.quantity !== Number(F.own)) return false;
+      if (!cFmtOk(c, F.fmt)) return false;
+      if (F.mode === 'miss' && F.ps === 'zero' && c.quantity !== 0) return false;
+      if (F.mode === 'miss' && F.ps === 'part' && c.quantity === 0) return false;
+      if (F.mode === 'own' && (F.own === '4' ? c.quantity < 4 : F.own && c.quantity !== Number(F.own))) return false;
       return cColorOk(c, F.col);
     });
+    var sort = F.sort === 'decks' && F.mode !== 'deck' ? 'name' : F.sort;
     cur.sort(function (a, b) {
       var n = a.name.localeCompare(b.name, 'pt');
-      if (F.sort === 'cmc') return a.cmc - b.cmc || n;
-      if (F.sort === 'rarity') return (C_RANK[b.rarity] || 0) - (C_RANK[a.rarity] || 0) || n;
-      if (F.sort === 'qty') return b.quantity - a.quantity || n;
-      if (F.sort === 'set') return a.set_code.localeCompare(b.set_code) || String(a.collector_number).localeCompare(String(b.collector_number), 'en', { numeric: true });
-      if (F.sort === 'recent') return b.updated_at.localeCompare(a.updated_at) || n;
+      if (sort === 'cmc') return a.cmc - b.cmc || n;
+      if (sort === 'rarity') return (C_RANK[b.rarity] || 0) - (C_RANK[a.rarity] || 0) || n;
+      if (sort === 'qty') return b.quantity - a.quantity || n;
+      if (sort === 'decks') return (b.decks || 0) - (a.decks || 0) || (C_RANK[b.rarity] || 0) - (C_RANK[a.rarity] || 0) || n;
+      if (sort === 'set') return a.set_code.localeCompare(b.set_code) || String(a.collector_number).localeCompare(String(b.collector_number), 'en', { numeric: true });
+      if (sort === 'recent') return String(b.updated_at || '').localeCompare(String(a.updated_at || '')) || n;
       return n;
     });
   }
-  function cell(c, i) {
+  function cell(c) {
     var im = c.image_uri ? h('img', { src: imgUrl(c.image_uri, 'normal'), alt: c.name, loading: 'lazy', decoding: 'async',
       onerror: function (e) { e.target.replaceWith(h('span', { class: 'fb', text: c.name })); } }) : h('span', { class: 'fb', text: c.name });
-    return h('button', { class: 'cc', type: 'button', 'aria-label': c.name + ', ' + c.quantity + ' cópias', onclick: function () { openCard(cur, cur.indexOf(c)); } },
-      h('span', { class: 'im' }, im, h('span', { class: 'qb' + (c.quantity >= 4 ? ' full' : ''), text: '×' + c.quantity }), h('span', { class: 'rb ' + c.rarity })),
+    var miss = c.craft;
+    var badge = miss ? h('span', { class: 'qb need', text: 'faltam ' + c.missing }) : h('span', { class: 'qb' + (c.quantity >= 4 ? ' full' : ''), text: '×' + c.quantity });
+    var sub = miss ? (c.decks ? h('span', { class: 'ql', text: c.decks + (c.decks === 1 ? ' deck' : ' decks') }) : c.quantity ? h('span', { class: 'ql', text: 'tens ×' + c.quantity }) : null) : null;
+    return h('button', { class: 'cc' + (miss ? (c.quantity ? ' part' : ' gone') : ''), type: 'button', 'aria-label': c.name + (miss ? ', faltam ' + c.missing : ', ' + c.quantity + ' cópias'), onclick: function () { openCard(cur, cur.indexOf(c)); } },
+      h('span', { class: 'im' }, im, badge, sub, h('span', { class: 'rb ' + c.rarity })),
       h('span', { class: 'nm', text: c.name }));
   }
   function paintGrid() {
-    count.textContent = sentence(cur.length, 'carta', 'cartas') + ' · ' + cur.reduce(function (s, c) { return s + c.quantity; }, 0) + ' cópias';
+    var tot = cur.reduce(function (s, c) { return s + (c.craft ? c.missing : c.quantity); }, 0);
+    count.textContent = sentence(cur.length, 'carta', 'cartas') + ' · ' + tot + (F.mode === 'own' ? ' cópias' : ' a craftar');
     var n = Math.min(S.cshow, cur.length);
     fill(grid, cur.length ? cur.slice(0, n).map(cell) : null);
-    if (!cur.length) grid.appendChild(h('p', { class: 'muted', style: 'grid-column:1/-1', text: 'Nenhuma carta com estes filtros.' }));
+    if (!cur.length) grid.appendChild(h('p', { class: 'muted', style: 'grid-column:1/-1', text: F.mode === 'deck' ? 'Nada a craftar para os teus decks com estes filtros. Boa!' : 'Nenhuma carta com estes filtros.' }));
     more.hidden = n >= cur.length; more.textContent = 'Mostrar mais (' + (cur.length - n) + ')';
   }
-  function refresh(keepShow) { if (!keepShow) S.cshow = 60; apply(); paintGrid(); }
+  var token = 0;
+  function refresh(keepShow) {
+    if (!keepShow) S.cshow = 60;
+    var my = ++token;
+    function go() {
+      if (my !== token) return;
+      apply();
+      fill(panel, F.mode === 'own' ? ownStats() : craftPanel());
+      paintGrid();
+    }
+    if (F.mode === 'miss' && !co.miss) { co.miss = buildMiss(co); }
+    if (F.mode === 'deck' && !co.deck) {
+      fill(grid, h('p', { class: 'muted', style: 'grid-column:1/-1', text: 'A ver o que falta nos teus decks…' })); more.hidden = true;
+      buildDeckMiss(co).then(function (l) { co.deck = l; go(); }, function (e) { co.deck = []; toast('Não consegui ler os decks: ' + e.message); go(); });
+      return;
+    }
+    go();
+  }
   more.onclick = function () { S.cshow += 90; paintGrid(); };
 
+  var seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'O que mostrar' }, C_MODES.map(function (m) {
+    return h('button', { type: 'button', 'aria-pressed': F.mode === m[0] ? 'true' : 'false', onclick: function () {
+      F.mode = m[0]; if (m[0] === 'deck') F.sort = 'decks'; else if (F.sort === 'decks') F.sort = 'name';
+      paintCollection(body);
+    }, text: m[1] });
+  }));
   var search = h('input', { type: 'search', placeholder: 'Procurar carta ou tipo…', 'aria-label': 'Procurar na coleção', value: F.q, oninput: function (e) { F.q = e.target.value; refresh(); } });
   function sel(label, key, opts) {
     return h('select', { 'aria-label': label, onchange: function (e) { F[key] = e.target.value; refresh(); } },
@@ -1346,18 +1483,23 @@ function paintCollection(body) {
     } }, k[0] === 'M' ? 'Multi' : k[0] === 'C' ? 'Incolor' : h('span', { class: 'sym ' + k[0], text: k[0] }));
     return b;
   }));
+  var sets = {};
+  (source() || co.list).forEach(function (c) { sets[c.set_code] = (sets[c.set_code] || 0) + 1; });
   var setOpts = [['', 'Set: todos']].concat(Object.keys(sets).sort().map(function (s) { return [s, s.toUpperCase() + ' (' + sets[s] + ')']; }));
-  var filters = h('div', { class: 'stack', style: 'padding:0;gap:8px' }, search, colRow,
-    h('div', { class: 'row', style: 'flex-wrap:wrap' },
-      sel('Raridade', 'rar', [['', 'Raridade: todas'], ['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']]),
-      sel('Tipo', 'typ', [['', 'Tipo: todos']].concat(C_TYPES))),
-    h('div', { class: 'row', style: 'flex-wrap:wrap' },
-      sel('Set', 'set', setOpts),
-      sel('Cópias', 'own', [['', 'Cópias: todas'], ['1', '1 cópia'], ['2', '2 cópias'], ['3', '3 cópias'], ['4', '4 ou mais']])),
-    h('div', { class: 'row between' }, count,
-      sel('Ordenar', 'sort', [['name', 'Nome'], ['cmc', 'Custo de mana'], ['rarity', 'Raridade'], ['qty', 'Cópias'], ['set', 'Set'], ['recent', 'Mais recentes']])));
+  var sorts = [['name', 'Nome'], ['cmc', 'Custo de mana'], ['rarity', 'Raridade'], ['set', 'Set']];
+  if (F.mode === 'deck') sorts.unshift(['decks', 'Mais usadas nos decks']);
+  else if (F.mode === 'own') sorts.splice(3, 0, ['qty', 'Cópias'], ['recent', 'Mais recentes']);
+  else sorts.splice(3, 0, ['qty', 'Cópias que tenho']);
+  var second = F.mode === 'own'
+    ? sel('Cópias', 'own', [['', 'Cópias: todas'], ['1', '1 cópia'], ['2', '2 cópias'], ['3', '3 cópias'], ['4', '4 ou mais']])
+    : F.mode === 'miss' ? sel('Que faltas', 'ps', [['', 'Faltam: todas'], ['zero', 'Nunca tive'], ['part', 'Completar 4×']]) : sel('Raridade', 'rar', [['', 'Raridade: todas'], ['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']]);
+  var filters = h('div', { class: 'stack', style: 'padding:0;gap:8px' }, search, h('details', { class: 'fdet', open: F.open ? true : null, ontoggle: function (e) { F.open = e.target.open; } }, h('summary', { text: 'Filtros (cor, formato, tipo, set, raridade, ordem)' }), h('div', { class: 'stack', style: 'padding:8px 0 0;gap:8px' }, colRow,
+    h('div', { class: 'row', style: 'flex-wrap:wrap' }, sel('Formato', 'fmt', C_FMT), sel('Tipo', 'typ', [['', 'Tipo: todos']].concat(C_TYPES))),
+    h('div', { class: 'row', style: 'flex-wrap:wrap' }, sel('Set', 'set', setOpts), F.mode === 'deck' ? sel('Ordenar', 'sort', sorts) : second),
+    F.mode === 'deck' ? null : h('div', { class: 'row', style: 'flex-wrap:wrap' }, F.mode === 'own' ? sel('Raridade', 'rar', [['', 'Raridade: todas'], ['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']]) : sel('Raridade', 'rar', [['', 'Raridade: todas'], ['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']]), sel('Ordenar', 'sort', sorts)))),
+    h('div', { class: 'row between' }, count, F.mode === 'deck' ? sel('Raridade', 'rar', [['', 'Raridade: todas'], ['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']]) : null));
   Array.prototype.forEach.call(filters.querySelectorAll('select'), function (s) { s.style.flex = '1 1 0'; s.style.minWidth = '0'; });
-  fill(body, stats, filters, grid, more);
+  fill(body, seg, panel, filters, grid, more);
   refresh(true);
 }
 
@@ -2403,7 +2545,7 @@ async function boot() {
   sb.auth.onAuthStateChange(function (ev, session) {
     var was = S.session; S.session = session;
     if (!session) {
-      closeCard(true); S.decks = null; S.cardCache = {}; S.wallet = null; S.events = null; S.bans = {}; S.collCount = null; S.needMfa = false; S.offline = false; S.recovery = false;
+      closeCard(true); S.decks = null; S.cardCache = {}; S.wallet = null; S.events = null; S.bans = {}; S.collCount = null; S.coll = null; S.cat = null; S.needMfa = false; S.offline = false; S.recovery = false;
       KV.del('snap');   // a cópia local dos dados sai do aparelho
       Array.prototype.forEach.call(document.querySelectorAll('.sheet, .cm'), function (s) { s.remove(); });
       ovReset(); document.body.style.overflow = ''; render(); return;
