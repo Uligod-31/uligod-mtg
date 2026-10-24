@@ -14,8 +14,12 @@
  *      (JSON do tracker/CSV/texto), faces e cartas relacionadas pelo Scryfall com cache, botão «voltar» do Android, dados offline,
  *      gravação segura do Player.log, ícones «maskable».
  * v12: ícones maiores (logótipo a ~72 % do quadrado, como as outras apps) e logótipo no ecrã de entrada.
- * v13: número da versão visível na app (cabeçalho e ecrã de entrada); APP_VERSION no index.html tem de coincidir com este número. */
-var CACHE = 'uligod-mtg-shell-v13';
+ * v13: número da versão visível na app (cabeçalho e ecrã de entrada); APP_VERSION no index.html tem de coincidir com este número.
+ * v14: cartão «Coleção» com os passos do Tapps Tracker (como administrador).
+ * v15: «Atualizar do jogo» (ponte do PC): pedido a partir da app, progresso em tempo real e resumo; ligar/desligar PC.
+ * v16: aviso de que o Tapps Tracker precisa de ter registado um jogo para encontrar a coleção.
+ * v17: resumo da sincronização com a verificação dos decks contra a coleção (leitor próprio da coleção na ponte). */
+var CACHE = 'uligod-mtg-shell-v17';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {

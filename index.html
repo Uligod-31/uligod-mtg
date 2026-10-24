@@ -192,7 +192,10 @@ nav.tabs button { position: relative; }
 .rel .chip { border: 1px solid var(--line); cursor: pointer; font: inherit; font-size: 12.5px; min-height: 32px; }
 .qr { width: min(100%, 220px); aspect-ratio: 1; margin: 0 auto; background: #fff; border-radius: 10px; padding: 8px; display: block; }
 .secret { font: 500 13px var(--mono); overflow-wrap: anywhere; text-align: center; user-select: all; }
-.brand-head { display: grid; justify-items: center; gap: 14px; text-align: center; }
+.sync-prog { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+.sync-prog i { display: block; height: 100%; background: var(--accent); transition: width .5s; }
+.sync-res { display: grid; gap: 4px; font-size: 13.5px; }
+.code-box { font: 500 12.5px var(--mono); overflow-wrap: anywhere; background: var(--surface-2); border-radius: 10px; padding: 10px; user-select: all; }.brand-head { display: grid; justify-items: center; gap: 14px; text-align: center; }
 .brand-head h1 { font-size: 26px; }
 .brand-head .logo { width: 112px; height: 112px; border-radius: 24%; display: block; box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
 .brand-head p { margin: 0; max-width: 34ch; }
@@ -356,7 +359,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "13";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "17";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1154,7 +1157,8 @@ function viewHome() {
   out.appendChild(h('section', { class: 'card' }, h('h3', { text: 'Coleção' }),
     S.collCount > 0
       ? h('p', null, h('b', { class: 'num', text: S.collCount }), ' cartas diferentes registadas.')
-      : h('p', { class: 'muted', text: 'Ainda sem coleção. Sem ela não consigo dizer o que falta craftar nem que decks já consegues montar. O Player.log atual do Arena não a inclui; vê o separador Importar.' })));
+      : h('p', { class: 'muted', text: 'Ainda sem coleção. Sem ela não consigo dizer o que falta craftar nem que decks já consegues montar. Atualiza-a a partir do jogo no separador Importar.' }),
+    h('button', { class: 'btn ghost', type: 'button', style: 'min-height:40px', text: 'Atualizar do jogo', onclick: function () { S.tab = 'import'; render(); window.scrollTo(0, 0); } })));
 
   out.appendChild(h('section', { class: 'card' }, h('h3', { text: 'Próximas datas' }),
     next.length ? next.map(evRow) : h('p', { class: 'muted', text: 'Sem datas registadas.' })));
@@ -1547,6 +1551,7 @@ function viewAlerts() {
 /* ---------- Importar ---------- */
 function viewImport() {
   var out = h('div', { class: 'stack' });
+  out.appendChild(syncCard());   // atualizar do jogo (ponte do PC)
 
   // 1) Player.log
   var fileIn = h('input', { id: 'log-file', type: 'file', accept: '.log,.txt,text/plain' });
@@ -1611,14 +1616,15 @@ function viewImport() {
   out.appendChild(h('section', { class: 'card stack', style: 'padding:14px' },
     h('h3', { text: 'Coleção' }),
     h('p', { class: 'small muted', text: S.collCount > 0 ? 'Tens ' + S.collCount + ' cartas diferentes registadas.' : 'Ainda sem coleção. Importa-a aqui; depois a app mostra o que falta craftar em cada deck.' }),
-    h('details', { class: 'note' }, h('summary', { text: 'Como obter a coleção do Arena (PC, uns 5 minutos)', style: 'cursor:pointer;font-weight:600' }),
+    h('details', { class: 'note' }, h('summary', { text: 'Como atualizar a coleção do Arena (no PC)', style: 'cursor:pointer;font-weight:600' }),
       h('div', { class: 'small', style: 'margin-top:8px;display:grid;gap:6px' },
-        h('div', { text: 'O Arena já não escreve a coleção no Player.log, por isso é preciso ler da memória do jogo. A ferramenta gratuita «MTGA Tracker Daemon» (github.com/frcaton/mtga-tracker-daemon) faz isso e mostra a coleção num endereço local.' }),
-        h('div', { text: '1. Abre o Arena no PC e espera pelo ecrã inicial.' }),
-        h('div', { text: '2. Corre o mtga-tracker-daemon (por ex.: «mtga-tracker-daemon.exe -p 9000»).' }),
-        h('div', { text: '3. No browser do PC abre http://localhost:9000/cards , seleciona tudo (Ctrl+A), copia (Ctrl+C) e cola na caixa abaixo (ou grava como .json e escolhe o ficheiro).' }),
-        h('div', { text: '4. Toca em «Importar coleção». A app aceita este JSON, um CSV (nome, set, número, quantidade) ou texto «4 Nome (SET) 123».' }),
-        h('div', { class: 'muted', text: 'Ferramentas desta família são usadas pela comunidade, mas não são da Wizards: usa por tua conta e risco e nunca dês a palavra-passe do Arena a nenhuma.' }))),
+        h('div', { text: 'O Arena já não escreve a coleção no Player.log, por isso uma ferramenta tem de a ler da memória do jogo. Isto só se faz no PC: a app não consegue abrir programas e o telemóvel não alcança o PC.' }),
+        h('div', { text: '0. Só na primeira vez: o Tapps Tracker precisa de ter visto pelo menos um jogo teu (usa as cartas dos jogos para encontrar a coleção na memória). Abre-o, joga uma partida rápida (ex.: contra o bot) e confirma que aparece no painel dele. Também é preciso ter os «Detailed Logs» ativos no Arena.' }),
+        h('div', { text: '1. Abre o Arena no PC e deixa-o no ecrã Decks (ou Coleção).' }),
+        h('div', { text: '2. Na pasta do projeto, faz duplo clique em «Atualizar colecao (PC).bat». Abre o Tapps Tracker como administrador (aprova o aviso do Windows) e a página dele.' }),
+        h('div', { text: '3. Na página Settings, em «Export MTGA Collection», clica em «Export to .csv» e fica na página até acabar (pode demorar uns minutos). Grava ou descarrega o ficheiro.' }),
+        h('div', { text: '4. Aqui na app: escolhe o ficheiro (ou cola o conteúdo) e toca em «Importar coleção». Aceita .csv, .json (grpId/owned) e texto «4 Nome (SET) 123».' }),
+        h('div', { class: 'muted', text: 'São ferramentas da comunidade, não da Wizards: usa por tua conta e risco e nunca dês a palavra-passe do Arena a nenhuma. Uma atualização do Arena pode estragá-las até saírem ajustes.' }))),
     h('label', null, 'Escolher ficheiro (.json, .csv ou .txt)', collFile),
     ta, h('label', null, 'Como importar', modeSel), goBtn, res));
 
@@ -1630,6 +1636,136 @@ function viewImport() {
   return out;
 }
 
+/* ---------- Sincronizar com o jogo (ponte do PC) ---------- */
+// A app cria um pedido; a ponte no PC (ponte-arena.ps1) lê o Arena (Player.log + Tapps Tracker) e entrega tudo ao servidor numa só gravação.
+// Funciona igual a partir do PC ou do telemóvel: o que importa é o PC estar ligado, com o Arena aberto e a ponte a correr.
+var SYNC = { box: null, bridge: null, tokens: null, last: null, req: null, timer: null, watch: null, busy: false, opts: { collection: true, decks: true, replace: true } };
+async function syncLoad() {
+  try {
+    var r = await Promise.all([
+      q(sb.from('sync_bridge').select('last_seen,info').maybeSingle()),
+      q(sb.from('sync_tokens').select('id,created_at,last_used_at').is('revoked_at', null)),
+      q(sb.from('sync_requests').select('*').order('created_at', { ascending: false }).limit(1))
+    ]);
+    SYNC.bridge = r[0].data; SYNC.tokens = r[1].data || []; SYNC.last = (r[2].data || [])[0] || null; SYNC.err = null;
+    if (SYNC.last && (SYNC.last.status === 'pending' || SYNC.last.status === 'running') && Date.now() - new Date(SYNC.last.created_at).getTime() < 35 * 60000) { SYNC.req = SYNC.last; syncPoll(); }
+  } catch (e) { SYNC.err = e.message; }
+  clearInterval(SYNC.watch);
+  SYNC.watch = setInterval(async function () {   // mantém o estado da ponte («PC ligado») atualizado enquanto o cartão está no ecrã
+    if (!SYNC.box || !document.contains(SYNC.box)) { clearInterval(SYNC.watch); return; }
+    try { var b = await q(sb.from('sync_bridge').select('last_seen,info').maybeSingle()); SYNC.bridge = b.data; } catch (e) { /* sem rede */ }
+    paintSync();
+  }, 8000);
+  paintSync();
+}
+async function syncStart() {
+  if (!needOnline() || SYNC.busy) return;
+  SYNC.busy = true; paintSync();
+  try {
+    var o = { collection: SYNC.opts.collection, decks: SYNC.opts.decks, replace_collection: SYNC.opts.replace, remove_missing_decks: false };
+    var r = await q(sb.from('sync_requests').insert({ user_id: S.session.user.id, options: o, status: 'pending' }).select('*'));
+    SYNC.req = r.data[0]; SYNC.last = SYNC.req; syncPoll();
+  } catch (e) { toast('Não consegui pedir a atualização: ' + e.message); }
+  SYNC.busy = false; paintSync();
+}
+function syncPoll() {
+  clearInterval(SYNC.timer);
+  SYNC.timer = setInterval(async function () {
+    if (!SYNC.req) { clearInterval(SYNC.timer); return; }
+    try {
+      var r = await q(sb.from('sync_requests').select('*').eq('id', SYNC.req.id).maybeSingle());
+      if (!r.data) return;
+      SYNC.last = r.data; SYNC.req = r.data;
+      var st = r.data.status;
+      if (st === 'done' || st === 'error' || st === 'cancelled') {
+        clearInterval(SYNC.timer); SYNC.req = null;
+        if (st === 'done') { try { await loadAll(); } catch (e) { /* ignora */ } toast('Atualizado a partir do jogo.'); if (S.tab === 'import' || S.tab === 'home' || S.tab === 'decks') { render(); return; } }
+      }
+    } catch (e) { /* sem rede: tenta no próximo ciclo */ }
+    paintSync();
+  }, 2000);
+}
+async function syncCancel() {
+  if (!SYNC.req) return;
+  try { await q(sb.from('sync_requests').update({ status: 'cancelled' }).eq('id', SYNC.req.id)); toast('Pedido cancelado.'); } catch (e) { toast('Não consegui cancelar: ' + e.message); }
+}
+function syncSummary(res) {
+  if (!res) return [];
+  var out = [], d = res.decks, c = res.collection;
+  if (res.wallet) out.push('Carteira atualizada.');
+  if (d) out.push('Decks: ' + d.received + ' lidos do jogo · ' + d.new + ' novos · ' + d.updated + ' atualizados · ' + d.unchanged + ' sem alterações' + (d.adopted ? ' · ' + d.adopted + ' ligados a decks que já tinhas' : '') + (d.removed ? ' · ' + d.removed + ' removidos' : '') + '.');
+  if (c) out.push('Coleção: ' + c.received + ' cartas diferentes lidas · ' + c.changed + ' alteradas · ' + c.removed + ' removidas · ' + c.total + ' no total' + (c.unknown_in_catalog ? ' (' + c.unknown_in_catalog + ' ainda não existem no catálogo da app)' : '') + '.');
+  if (c && c.deck_check && c.deck_check.cards) out.push('Verificação: ' + c.deck_check.covered + ' de ' + c.deck_check.cards + ' cartas dos teus decks estão cobertas pela coleção (terrenos básicos não contam).');
+  return out;
+}
+function paintSync() {
+  var box = SYNC.box; if (!box) return;
+  var b = SYNC.bridge, age = b ? (Date.now() - new Date(b.last_seen).getTime()) / 1000 : null, on = age != null && age < 45, info = (b && b.info) || {};
+  var act = SYNC.req && (SYNC.req.status === 'pending' || SYNC.req.status === 'running'), run = SYNC.req || null, last = SYNC.last;
+  var hasTok = SYNC.tokens && SYNC.tokens.length > 0;
+  var parts = [h('h3', { text: 'Atualizar do jogo (decks, carteira e coleção)' })];
+  if (SYNC.err) parts.push(h('div', { class: 'note bad', text: 'Não consegui ler o estado da ponte: ' + SYNC.err }));
+  if (!hasTok && SYNC.tokens) {
+    parts.push(h('p', { class: 'small muted', text: 'Liga este PC uma vez e depois atualizas tudo com um toque, a partir do PC ou do telemóvel: a ponte no PC lê o Arena (Player.log e Tapps Tracker) e entrega à app.' }),
+      h('button', { class: 'btn', type: 'button', text: 'Ligar este PC', onclick: openBridgeSetup }));
+  } else if (SYNC.tokens) {
+    parts.push(h('div', { class: 'row', style: 'flex-wrap:wrap' },
+      h('span', { class: 'chip ' + (on ? 'ok' : 'warn'), text: on ? 'PC ligado' : b ? 'PC desligado (visto há ' + (age < 3600 ? Math.round(age / 60) + ' min' : Math.round(age / 3600) + ' h') + ')' : 'PC ainda não se ligou' }),
+      on ? h('span', { class: 'chip ' + (info.arena ? 'ok' : 'warn'), text: info.arena ? 'Arena aberto' : 'Arena fechado' }) : null,
+      on ? h('span', { class: 'chip ' + (info.tapps ? 'ok' : ''), text: info.tapps ? 'Tapps Tracker a correr' : 'Tapps Tracker fechado (abre sozinho)' }) : null));
+    if (!act) {
+      var opt = function (key, label) {
+        var cb = h('input', { type: 'checkbox', checked: SYNC.opts[key], onchange: function (e) { SYNC.opts[key] = e.target.checked; } });
+        return h('label', { style: 'grid-template-columns:auto 1fr;align-items:center' }, cb, label);
+      };
+      parts.push(opt('decks', 'Carteira e decks (do Player.log)'), opt('collection', 'Coleção (Tapps Tracker; demora alguns minutos)'),
+        opt('replace', 'A coleção fica igual ao jogo (remove o que já não tens)'),
+        h('button', { class: 'btn', type: 'button', disabled: !on || SYNC.busy, text: SYNC.busy ? 'A pedir…' : 'Atualizar do jogo', onclick: syncStart }),
+        !on ? h('p', { class: 'small muted', text: 'O PC tem de estar ligado, com a ponte a correr (instalar-ponte.ps1 arranca-a sozinha ao iniciar sessão) e o Arena aberto no ecrã Decks.' }) : null);
+    } else {
+      var pct = run.status === 'pending' ? 0 : (run.progress || 1);
+      parts.push(h('div', { class: 'sync-prog', role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: 'width:' + pct + '%' })),
+        h('div', { class: 'small' }, h('b', { text: run.status === 'pending' ? 'À espera do PC…' : (run.step || 'A trabalhar…') + ' · ' + pct + ' %' })),
+        run.message ? h('div', { class: 'small muted', text: run.message }) : null,
+        h('button', { class: 'back', type: 'button', text: 'Cancelar', onclick: syncCancel }));
+    }
+  }
+  if (!act && last) {
+    var when = new Date(last.updated_at || last.created_at).toLocaleString('pt-PT');
+    if (last.status === 'done') parts.push(h('div', { class: 'note' }, h('b', { text: 'Última atualização: ' + when }), h('div', { class: 'sync-res' }, syncSummary(last.result).map(function (t) { return h('div', { text: t }); }),
+      (last.result && last.result.warnings || []).map(function (w) { return h('div', { class: 'small', style: 'color:var(--warn)', text: '⚠ ' + w }); }))));
+    else if (last.status === 'error') parts.push(h('div', { class: 'note bad', text: 'A última tentativa (' + when + ') falhou: ' + (last.message || 'erro desconhecido') }));
+    else if (last.status === 'cancelled') parts.push(h('p', { class: 'small muted', text: 'Último pedido cancelado (' + when + ').' }));
+  }
+  if (hasTok) parts.push(h('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' },
+    h('button', { class: 'back', type: 'button', text: 'Ligar outro PC', onclick: openBridgeSetup }),
+    h('button', { class: 'back', type: 'button', text: 'Desligar PCs (revogar códigos)', onclick: async function () {
+      if (!window.confirm('Revogar todos os códigos? Os PCs ligados deixam de poder atualizar a app (podes ligar de novo quando quiseres).')) return;
+      try { var n = await sb.rpc('revoke_sync_tokens'); if (n.error) throw new Error(n.error.message); toast('Códigos revogados.'); syncLoad(); } catch (e) { toast('Não consegui revogar: ' + e.message); }
+    } })));
+  fill.apply(null, [box].concat(parts));
+}
+function syncCard() {
+  SYNC.box = h('section', { class: 'card stack', style: 'padding:14px' }, h('p', { class: 'muted', text: 'A carregar…' }));
+  syncLoad();
+  return SYNC.box;
+}
+function openBridgeSetup() {
+  var m = txModal('Ligar este PC'), body = h('div', { class: 'stack', style: 'padding:0' }); m.box.appendChild(body);
+  fill(body, h('p', { class: 'small', text: 'Gera um código para a ponte do PC. O código só serve para entregar dados à tua conta (não dá acesso à tua palavra-passe) e podes revogá-lo quando quiseres. Aparece só uma vez.' }),
+    h('button', { class: 'btn', type: 'button', text: 'Gerar código', onclick: async function (e) {
+      e.target.disabled = true;
+      try {
+        var r = await sb.rpc('create_sync_token', { p_label: 'PC ' + new Date().toLocaleDateString('pt-PT') }); if (r.error) throw new Error(r.error.message);
+        var code = r.data;
+        fill(body, h('p', { class: 'small', text: '1. Copia o código (guarda-o só neste PC):' }), h('div', { class: 'code-box', text: code }),
+          h('button', { class: 'btn', type: 'button', text: 'Copiar código', onclick: function () { copyText(code, null).then(function () { toast('Código copiado.'); }, function () { toast('Seleciona o código e copia à mão.'); }); } }),
+          h('p', { class: 'small', text: '2. No PC, na pasta do projeto, faz duplo clique em «Ligar este PC.bat» e aprova o aviso do Windows. Isto guarda o código e instala a ponte, que passa a arrancar sozinha ao iniciares sessão (como administrador).' }),
+          h('p', { class: 'small muted', text: 'Depois volta a este cartão: deve aparecer «PC ligado». Se perderes o código ou o PC mudar de dono, revoga-o aqui na app («Desligar PCs»).' }));
+        syncLoad();
+      } catch (x) { toast('Não consegui gerar o código: ' + x.message); e.target.disabled = false; }
+    } }));
+}
 /* ---------- Importar / Exportar decks (formato de texto do MTG Arena) ---------- */
 function arenaText(lines) {
   var order = [['command', 'Commander'], ['companion', 'Companion'], ['main', 'Deck'], ['side', 'Sideboard']];
