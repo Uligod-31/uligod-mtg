@@ -397,13 +397,13 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "22";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "23";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 var $app = document.getElementById('app');
-var S = { session: null, tab: 'home', coll: null, cq: { mode: 'own', q: '', col: [], rar: '', typ: '', set: '', own: '', fmt: '', ps: '', sort: 'name' }, cshow: 60, decks: null, wallet: null, events: null, collCount: null, fmt: 'all', sort: 'name', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {},
+var S = { session: null, tab: 'home', coll: null, cq: { mode: 'own', q: '', col: [], rar: '', typ: '', set: '', own: '', fmt: '', ps: 'zero', cp: '1', sort: 'name' }, cshow: 60, decks: null, wallet: null, events: null, collCount: null, fmt: 'all', sort: 'name', q: '', banFmt: 'standard', bans: {}, busy: false, cardCache: {},
   offline: false, snapAt: null, needMfa: false, recovery: /type=recovery/.test(location.hash) };
 
 /* ---------- utilitários ---------- */
@@ -1316,7 +1316,7 @@ function buildMiss(co) {
     if (isBasic(first) || C_RANK[first.rarity] == null) return;
     var own = ownedOf(g, co.qty);
     if (own >= 4) return;
-    out.push(Object.assign({}, bestPrint(g, co.qty), { quantity: own, missing: 4 - own, craft: true }));
+    out.push(Object.assign({}, bestPrint(g, co.qty), { quantity: own, missing: 4 - own, m4: 4 - own, craft: true }));
   });
   return out;
 }
@@ -1402,7 +1402,8 @@ function paintCollection(body) {
     cur.forEach(function (c) { if (need[c.rarity] != null) { need[c.rarity] += c.missing; n++; } });
     var short = 0, tot = 0;
     ['common', 'uncommon', 'rare', 'mythic'].forEach(function (k) { tot += need[k]; short += Math.max(0, need[k] - (w[WC_KEY[k]] || 0)); });
-    var title = F.mode === 'deck' ? 'Para montares os teus decks' : 'Para completares ' + (F.ps === 'zero' ? 'as que ainda não tens' : 'as 4 cópias');
+    var zero = F.mode === 'miss' && (F.ps || 'zero') === 'zero';
+    var title = F.mode === 'deck' ? 'Para montares os teus decks' : zero ? 'Para teres ' + (Number(F.cp || 1) === 1 ? '1 cópia de cada carta que não tens' : 'o jogo completo (4×) das que não tens') : 'Para completares as 4 cópias das que já tens';
     var verdict = !tot ? 'Nada a craftar com estes filtros.' : !S.wallet ? 'Sem carteira registada: atualiza-a no separador Importar.' : short === 0 ? 'Tens wildcards para tudo isto!' : 'Faltam-te ' + short + ' wildcards (' + ['common', 'uncommon', 'rare', 'mythic'].map(function (k) { var s = Math.max(0, need[k] - (w[WC_KEY[k]] || 0)); return s ? s + ' ' + RARITY[k].toLowerCase() + (s > 1 ? 's' : '') : null; }).filter(Boolean).join(', ') + ').';
     return h('section', { class: 'card' }, h('h3', { text: 'Custo de craft' }),
       h('p', { style: 'margin:0 0 10px' }, h('b', { text: title }), ': ' + sentence(n, 'carta', 'cartas') + ', ' + tot + ' wildcards.'),
@@ -1418,13 +1419,14 @@ function paintCollection(body) {
 
   function apply() {
     var src = source() || [], qq = F.q.trim().toLowerCase();
+    if (F.mode === 'miss') { var z0 = (F.ps || 'zero') === 'zero'; src.forEach(function (c) { c.missing = z0 ? Number(F.cp || 1) : c.m4; }); }
     cur = src.filter(function (c) {
       if (qq && c.name.toLowerCase().indexOf(qq) === -1 && c.type_line.toLowerCase().indexOf(qq) === -1) return false;
       if (F.rar && c.rarity !== F.rar) return false;
       if (F.typ && c.type_line.indexOf(F.typ) === -1) return false;
       if (F.set && c.set_code !== F.set) return false;
       if (!cFmtOk(c, F.fmt)) return false;
-      if (F.mode === 'miss' && F.ps === 'zero' && c.quantity !== 0) return false;
+      if (F.mode === 'miss' && (F.ps || 'zero') === 'zero' && c.quantity !== 0) return false;
       if (F.mode === 'miss' && F.ps === 'part' && c.quantity === 0) return false;
       if (F.mode === 'own' && (F.own === '4' ? c.quantity < 4 : F.own && c.quantity !== Number(F.own))) return false;
       return cColorOk(c, F.col);
@@ -1445,7 +1447,7 @@ function paintCollection(body) {
     var im = c.image_uri ? h('img', { src: imgUrl(c.image_uri, 'normal'), alt: c.name, loading: 'lazy', decoding: 'async',
       onerror: function (e) { e.target.replaceWith(h('span', { class: 'fb', text: c.name })); } }) : h('span', { class: 'fb', text: c.name });
     var miss = c.craft;
-    var badge = miss ? h('span', { class: 'qb need', text: 'faltam ' + c.missing }) : h('span', { class: 'qb' + (c.quantity >= 4 ? ' full' : ''), text: '×' + c.quantity });
+    var badge = miss ? h('span', { class: 'qb need', text: (F.mode === 'miss' && !c.quantity) ? 'não tenho' : 'faltam ' + c.missing }) : h('span', { class: 'qb' + (c.quantity >= 4 ? ' full' : ''), text: '×' + c.quantity });
     var sub = miss ? (c.decks ? h('span', { class: 'ql', text: c.decks + (c.decks === 1 ? ' deck' : ' decks') }) : c.quantity ? h('span', { class: 'ql', text: 'tens ×' + c.quantity }) : null) : null;
     return h('button', { class: 'cc' + (miss ? (c.quantity ? ' part' : ' gone') : ''), type: 'button', 'aria-label': c.name + (miss ? ', faltam ' + c.missing : ', ' + c.quantity + ' cópias'), onclick: function () { openCard(cur, cur.indexOf(c)); } },
       h('span', { class: 'im' }, im, badge, sub, h('span', { class: 'rb ' + c.rarity })),
@@ -1507,7 +1509,7 @@ function paintCollection(body) {
   else sorts.splice(3, 0, ['qty', 'Cópias que tenho']);
   var second = F.mode === 'own'
     ? sel('Cópias', 'own', [['', 'Cópias: todas'], ['1', '1 cópia'], ['2', '2 cópias'], ['3', '3 cópias'], ['4', '4 ou mais']])
-    : F.mode === 'miss' ? sel('Que faltas', 'ps', [['', 'Faltam: todas'], ['zero', 'Nunca tive'], ['part', 'Completar 4×']]) : sel('Raridade', 'rar', [['', 'Raridade: todas'], ['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']]);
+    : F.mode === 'miss' ? [sel('Que cartas', 'ps', [['zero', 'Cartas que não tenho'], ['part', 'Completar 4× (tenho 1 a 3)']]), (F.ps || 'zero') === 'zero' ? sel('Custo', 'cp', [['1', 'Custo: 1 cópia'], ['4', 'Custo: 4 cópias']]) : null] : sel('Raridade', 'rar', [['', 'Raridade: todas'], ['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']]);
   var filters = h('div', { class: 'stack', style: 'padding:0;gap:8px' }, search, h('details', { class: 'fdet', open: F.open ? true : null, ontoggle: function (e) { F.open = e.target.open; } }, h('summary', { text: 'Filtros (cor, formato, tipo, set, raridade, ordem)' }), h('div', { class: 'stack', style: 'padding:8px 0 0;gap:8px' }, colRow,
     h('div', { class: 'row', style: 'flex-wrap:wrap' }, sel('Formato', 'fmt', C_FMT), sel('Tipo', 'typ', [['', 'Tipo: todos']].concat(C_TYPES))),
     h('div', { class: 'row', style: 'flex-wrap:wrap' }, sel('Set', 'set', setOpts), F.mode === 'deck' ? sel('Ordenar', 'sort', sorts) : second),
