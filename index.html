@@ -442,7 +442,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "39";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "40";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1926,7 +1926,14 @@ function agCurva(r) {   // curva do deck + (a tracejado) o que as sugestões acr
     h('div', { class: 'leg' }, h('span', null, h('b'), 'o teu deck'), h('span', null, h('b', { class: 'g' }), 'sugestões (por custo)')));
 }
 function agentCard(d, box) {
-  var st = { last: null, timer: null, busy: false, bridge: null, thumbs: [], imgs: {} };
+  var st = { last: null, timer: null, busy: false, bridge: null, thumbs: [], imgs: {}, filtros: ['', '', ''] };
+  var FKEY = 'ag-filtros-' + d.deck_id;
+  try { var fs0 = JSON.parse(localStorage.getItem(FKEY) || '[]'); if (Array.isArray(fs0)) st.filtros = [fs0[0] || '', fs0[1] || '', fs0[2] || '']; } catch (e) { /* sem armazenamento */ }
+  function filtrosLimpos() {   // até 3 palavras, sem repetidas, minúsculas
+    var out = [];
+    st.filtros.forEach(function (w) { w = String(w || '').trim().toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, '').slice(0, 30); if (w && out.indexOf(w) < 0) out.push(w); });
+    return out.slice(0, 3);
+  }
   var age = function (iso) { var s = (Date.now() - new Date(iso).getTime()) / 1000; return s < 90 ? 'agora mesmo' : s < 3600 ? 'há ' + Math.round(s / 60) + ' min' : s < 86400 ? 'há ' + Math.round(s / 3600) + ' h' : 'há ' + Math.round(s / 86400) + ' dias'; };
   async function load() {
     try {
@@ -1947,8 +1954,10 @@ function agentCard(d, box) {
   }
   async function start() {
     if (!needOnline() || st.busy) return;
-    st.busy = true; paint();
-    try { var r = await q(sb.from('deck_analyses').insert({ user_id: S.session.user.id, deck_id: d.deck_id, status: 'pending' }).select('*')); st.last = r.data[0]; watch(); }
+    st.busy = true;
+    try { localStorage.setItem(FKEY, JSON.stringify(st.filtros)); } catch (e) { /* ignora */ }
+    paint();
+    try { var r = await q(sb.from('deck_analyses').insert({ user_id: S.session.user.id, deck_id: d.deck_id, status: 'pending', filtros: filtrosLimpos() }).select('*')); st.last = r.data[0]; watch(); }
     catch (e) { toast('Não consegui pedir a análise: ' + e.message); }
     st.busy = false; paint();
   }
@@ -1969,6 +1978,9 @@ function agentCard(d, box) {
     out.push(h('div', { class: 'row', style: 'flex-wrap:wrap' }, statChip(lg.estado, 'Legalidade'), statChip(m.estado, 'Mana'),
       af.forma ? h('span', { class: 'chip acc', text: AG_PT.shape[af.forma] || af.forma }) : null,
       af.veredito_foco ? h('span', { class: 'chip', text: AG_PT.verdict[af.veredito_foco] || af.veredito_foco }) : null));
+    if (r.filtros && (r.filtros.palavras || []).length) out.push(h('div', { class: 'note' }, h('b', { text: '🔎 Análise com filtros: ' + r.filtros.palavras.join(' · ') }),
+      h('div', { class: 'small', text: 'No deck: ' + r.filtros.palavras.map(function (w) { return w + ' em ' + ((r.filtros.no_deck || {})[w] || 0) + ' cartas'; }).join(' · ') + '. As cartas com as tuas palavras passam à frente e as do deck que as têm ficam protegidas de serem sugeridas para sair.' }),
+      r.sugestoes && r.sugestoes.filtro_fora && r.sugestoes.filtro_fora.total ? h('div', { class: 'small muted', text: r.sugestoes.filtro_fora.total + ' cartas com as tuas palavras ficaram de fora por cor ou custo (ex.: ' + r.sugestoes.filtro_fora.exemplos.slice(0, 4).join(', ') + ').' }) : null));
     out.push(agVeredito(r));
     var tp5 = agTop(r); if (tp5) out.push(tp5);
     if (stale) out.push(h('div', { class: 'note warn', text: 'O deck mudou depois desta análise. Analisa de novo para atualizar.' }));
@@ -2005,7 +2017,7 @@ function agentCard(d, box) {
       return h('div', { class: 'sg' + (c.top ? ' is-top' : '') }, h('i', { class: 'strip', style: 'background:' + agCorFundo(c.cores), 'aria-hidden': 'true' }), th,
         h('div', null,
           h('div', { class: 'nm' }, c.top ? h('span', { class: 'chip top', title: (c.razoes || []).join(' · '), text: '🏆 TOP ' + c.top }) : null, cardLink({ name: c.nome }, c.nome), o.terreno ? h('span', { class: 'muted small', text: 'produz' }) : null, agCusto(c),
-            (c.cores || []).length > 1 && !o.terreno ? h('span', { class: 'chip hot', title: 'Carta multicolor', text: (c.cores || []).length >= 3 ? 'mista · ' + c.cores.length + ' cores' : 'mista' }) : null, ritmo, decisao, chip),
+            (c.filtro || []).map(function (w) { return h('span', { class: 'chip hot', title: 'Tem a tua palavra', text: '🔎 ' + w }); }), (c.cores || []).length > 1 && !o.terreno ? h('span', { class: 'chip hot', title: 'Carta multicolor', text: (c.cores || []).length >= 3 ? 'mista · ' + c.cores.length + ' cores' : 'mista' }) : null, ritmo, decisao, chip),
           h('div', { class: 'muted small', text: (c.tipo || '') + (c.tema ? ' · ' + agTema(c.tema) : '') + (c.papel ? ' · papel: ' + c.papel : '') }),
           o.side && (c.razoes || []).length ? h('div', { class: 'small', style: 'margin-top:2px', text: c.razoes.join(' · ') }) : null,
           tx,
@@ -2024,7 +2036,7 @@ function agentCard(d, box) {
     var tr = r.terrenos;
     if (tr && (tr.sugestoes || []).length) out.push(h('div', null, sgHead('◆', 'Terrenos que melhoram a mana'),
       h('p', { class: 'muted small', text: 'Duais e fixadores das tuas cores fortes que substituem terrenos básicos. Dão cores sem custo extra (ignoro os que pedem {1} para filtrar ou só servem criaturas de um tipo).' }),
-      tr.sugestoes.map(function (c) { return sgRow({ nome: c.nome, cores: c.cores, custo_mana: c.cores.map(function (x) { return '{' + x + '}'; }).join(''), tipo: c.tipo, texto: c.texto, sai: c.sai, raridade: c.raridade, cabe: c.cabe, copias: c.copias, ritmo: c.ritmo, tema: '', top: c.top, razoes: c.razoes }, { terreno: true }); })));
+      tr.sugestoes.map(function (c) { return sgRow({ nome: c.nome, cores: c.cores, custo_mana: c.cores.map(function (x) { return '{' + x + '}'; }).join(''), tipo: c.tipo, texto: c.texto, sai: c.sai, raridade: c.raridade, cabe: c.cabe, copias: c.copias, ritmo: c.ritmo, tema: '', top: c.top, razoes: c.razoes, filtro: c.filtro }, { terreno: true }); })));
     var sb2 = r.sideboard;   // Opcional: vem depois dos terrenos, existam ou não cartas no sideboard
     var sgOpc = function (ico, t) { return h('div', { class: 'sgh' }, h('i', { 'aria-hidden': 'true', text: ico }), t, h('span', { class: 'chip', style: 'margin-left:auto', title: 'Não é prioritário', text: 'Opcional' })); };
     if (sb2) {
@@ -2083,6 +2095,12 @@ function agentCard(d, box) {
       if (a && a.status === 'done' && a.result) parts.push(h('div', { class: 'muted small', text: 'Analisado ' + age(a.updated_at) + ' · só leitura: o Uligod\'eYes nunca altera o deck.' }), h('div', { class: 'stack' }, report(a)));
       else if (a && a.status === 'error') parts.push(h('div', { class: 'note bad', text: 'A última análise falhou: ' + (a.message || 'erro desconhecido') }));
       else if (!a && !st.err) parts.push(h('p', { class: 'small muted', text: 'O Uligod\'eYes corre as ferramentas de análise no teu PC: legalidade, curva, base de mana, o que falta craftar, pontos fracos, trocas e todas as cartas do formato que encaixam no deck (as que tens e as que ficam por craftar).' }));
+      parts.push(h('div', { class: 'filtros' }, h('div', { class: 'small', style: 'font-weight:600' }, '🔎 Filtros da análise (opcionais)'),
+        h('div', { class: 'muted small', text: 'Até 3 palavras em inglês (nome, tipo, texto ou coleção da carta). As cartas que as tiverem passam à frente; sem palavras, a análise é a normal.' }),
+        h('div', { class: 'row', style: 'margin-top:6px' }, [0, 1, 2].map(function (i) {
+          return h('input', { type: 'text', maxlength: 30, placeholder: ['ex.: avatar', 'ex.: monk', 'palavra 3'][i], 'aria-label': 'Filtro ' + (i + 1), value: st.filtros[i], style: 'min-width:0',
+            oninput: function (e) { st.filtros[i] = e.target.value; } });
+        }))));
       parts.push(h('button', { class: 'btn', type: 'button', disabled: st.busy || !!st.err && S.offline, text: st.busy ? 'A pedir…' : a && a.status === 'done' ? 'Analisar de novo' : 'Analisar com o Uligod\'eYes', onclick: start }),
         !on && st.bridge !== undefined ? h('p', { class: 'small muted', text: 'O PC tem de estar ligado com a ponte a correr (a primeira análise demora 1 a 2 minutos).' }) : null);
     }
