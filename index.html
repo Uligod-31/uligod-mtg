@@ -442,7 +442,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "37";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "38";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1865,7 +1865,7 @@ function agTop(r) {   // TOP 5: o que mais melhora o deck, entre cartas que tens
     h('div', { class: 'muted small', text: 'Entre as cartas que já tens, as que ficam por craftar e os terrenos.' }),
     t.map(function (x) {
       return h('div', { class: 'tr' }, h('span', { class: 'rk', text: x.top }),
-        h('div', null, h('div', { style: 'font-weight:600;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px' }, cardLink({ name: x.nome }, x.nome), x.tipo === 'terreno' ? h('span', { class: 'muted small', text: 'terreno' }) : null,
+        h('div', null, h('div', { style: 'font-weight:600;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px' }, cardLink({ name: x.nome }, x.nome), x.tipo === 'terreno' ? h('span', { class: 'muted small', text: 'terreno' }) : x.origem === 'sideboard' ? h('span', { class: 'chip', text: 'do sideboard' }) : null,
           x.tenho ? h('span', { class: 'chip ok', style: 'margin-left:auto', text: 'tenho' }) : x.raridade ? h('span', { class: 'chip ' + (x.cabe ? 'ok' : 'warn'), style: 'margin-left:auto' }, h('i', { class: 'dot ' + x.raridade }), ' ' + (AG_PT.rar[x.raridade] || x.raridade)) : null),
           h('div', { class: 'rz', text: (x.razoes || []).join(' · ') })));
     }));
@@ -1878,6 +1878,8 @@ function agVeredito(r) {   // «Em resumo»: o que o Uligod'eYes diria em voz al
   if (viol) it.push(viol + (viol === 1 ? ' carta ilegal' : ' cartas ilegais') + ' no formato' + (r.tamanho && (r.tamanho.ilegais || []).length === r.tamanho.excesso ? ': tirá-las deixa o deck nas ' + r.tamanho.minimo + ' cartas certas' : '') + '.');
   else it.push('Todas as cartas são legais no formato.');
   it.push('Mana: ' + (r.mana && r.mana.estado === 'PASS' ? 'equilibrada' : 'a rever') + ' (' + (e.terrenos != null ? e.terrenos + ' terrenos, ' : '') + 'custo médio ' + String(e.cmc_medio).replace('.', ',') + ').');
+  var nsub = ((r.sideboard && r.sideboard.cartas) || []).filter(function (c) { return c.decisao === 'subir'; }).length;
+  if (nsub) it.push(nsub + (nsub === 1 ? ' carta do sideboard devia' : ' cartas do sideboard deviam') + ' subir ao main (já as tens, não custam wildcards).');
   if ((sg.tenho || []).length) it.push('Já tens ' + sg.tenho.length + ' cartas na coleção que reforçam o plano do deck.');
   if (cab) it.push(cab + ' cartas a craftar cabem nas tuas wildcards' + ((cr.custo && sg.craft) ? '' : '') + '.');
   return h('div', { class: 'verdict' }, h('div', null, 'Deck ', h('b', { text: forma }), ' · ', h('b', { text: (r.deck && r.deck.cartas) + ' cartas' })), h('ul', null, it.map(function (t) { return h('li', { class: 'small', text: t }); })));
@@ -1997,17 +1999,35 @@ function agentCard(d, box) {
       var th = h('span', { class: 'sgth' }, emptyThumb());
       st.thumbs.push({ name: c.nome, el: th, done: false });
       var ritmo = c.ritmo ? h('span', { class: 'chip ' + (c.ritmo === 'livre' ? 'ok' : c.ritmo === 'condicional' ? 'warn' : ''), title: c.ritmo === 'livre' ? 'Entra virado para cima' : c.ritmo === 'condicional' ? 'Entra virado a menos que cumpras uma condição (ou pagues vida)' : 'Entra sempre virado', text: c.ritmo === 'livre' ? 'entra livre' : c.ritmo === 'condicional' ? 'condicional' : 'entra virado' }) : null;
-      var chip = c.raridade ? h('span', { class: 'chip ' + (c.cabe ? 'ok' : 'warn'), style: 'margin-left:auto', title: c.cabe ? 'Cabe nas tuas wildcards' : 'Não chega nas wildcards' }, h('i', { class: 'dot ' + c.raridade }), ' ' + (AG_PT.rar[c.raridade] || c.raridade)) : h('span', { class: 'chip ok', style: 'margin-left:auto', text: 'tenho ×' + c.copias });
+      var decisao = o.side ? h('span', { class: 'chip ' + (c.decisao === 'subir' ? 'acc' : ''), style: 'font-weight:600', text: c.decisao === 'subir' ? '↑ subir ao main' : 'fica no sideboard' }) : null;
+      var chip = o.side ? h('span', { class: 'chip', style: 'margin-left:auto', text: 'sideboard ×' + c.qtd }) : c.raridade ? h('span', { class: 'chip ' + (c.cabe ? 'ok' : 'warn'), style: 'margin-left:auto', title: c.cabe ? 'Cabe nas tuas wildcards' : 'Não chega nas wildcards' }, h('i', { class: 'dot ' + c.raridade }), ' ' + (AG_PT.rar[c.raridade] || c.raridade)) : h('span', { class: 'chip ok', style: 'margin-left:auto', text: 'tenho ×' + c.copias });
       var tx = c.texto ? h('div', { class: 'tx', title: 'Toca para ver tudo', text: c.texto + (c.texto.length >= 220 ? '…' : ''), onclick: function (e) { e.currentTarget.classList.toggle('open'); } }) : null;
       return h('div', { class: 'sg' + (c.top ? ' is-top' : '') }, h('i', { class: 'strip', style: 'background:' + agCorFundo(c.cores), 'aria-hidden': 'true' }), th,
         h('div', null,
           h('div', { class: 'nm' }, c.top ? h('span', { class: 'chip top', title: (c.razoes || []).join(' · '), text: '🏆 TOP ' + c.top }) : null, cardLink({ name: c.nome }, c.nome), o.terreno ? h('span', { class: 'muted small', text: 'produz' }) : null, agCusto(c),
-            (c.cores || []).length > 1 && !o.terreno ? h('span', { class: 'chip hot', title: 'Carta multicolor', text: 'mista' }) : null, ritmo, chip),
-          h('div', { class: 'muted small', text: (c.tipo || '') + (c.tema ? ' · ' + agTema(c.tema) : '') }),
+            (c.cores || []).length > 1 && !o.terreno ? h('span', { class: 'chip hot', title: 'Carta multicolor', text: (c.cores || []).length >= 3 ? 'mista · ' + c.cores.length + ' cores' : 'mista' }) : null, ritmo, decisao, chip),
+          h('div', { class: 'muted small', text: (c.tipo || '') + (c.tema ? ' · ' + agTema(c.tema) : '') + (c.papel ? ' · papel: ' + c.papel : '') }),
+          o.side && (c.razoes || []).length ? h('div', { class: 'small', style: 'margin-top:2px', text: c.razoes.join(' · ') }) : null,
           tx,
           c.sai ? h('div', { class: 'sai' }, '⇄ Podia substituir ', cardLink({ name: c.sai }, c.sai)) : null));
     };
     var sgHead = function (ico, t) { return h('div', { class: 'sgh' }, h('i', { 'aria-hidden': 'true', text: ico }), t); };
+    var sb2 = r.sideboard;
+    if (sb2) {
+      var bo1 = !!d.is_bo1;
+      if (sb2.tem) {
+        var subir = (sb2.cartas || []).filter(function (c) { return c.decisao === 'subir'; });
+        out.push(h('div', null, sgHead('⇧', 'O teu sideboard (' + sb2.total + ' de ' + sb2.maximo + ') · ' + subir.length + ' a subir ao main'),
+          h('p', { class: 'muted small', text: bo1 ? 'Este deck é Bo1: o sideboard não joga durante a partida, por isso o que serve ao plano do deck rende mais no main.' : 'Este deck é Bo3: antes de subir uma carta, pensa se a queres como opção de situação nas partidas 2 e 3.' }),
+          (sb2.cartas || []).slice().sort(function (a, b) { return (a.decisao === 'subir' ? 0 : 1) - (b.decisao === 'subir' ? 0 : 1); }).map(function (c) { return sgRow(c, { side: true }); })));
+      } else if (!bo1 && (sb2.sugeridas || []).length) {
+        out.push(h('div', null, sgHead('⇧', 'Sideboard sugerido (Bo3)'),
+          h('p', { class: 'muted small', text: 'O deck não tem sideboard. Para Bo3, cartas de situação das tuas cores (por papel); as que já tens vêm primeiro.' }),
+          sb2.sugeridas.map(function (c) { return sgRow(Object.assign({ cabe: true }, c, { raridade: c.copias ? null : c.raridade }), {}); })));
+      } else if (bo1) {
+        out.push(h('p', { class: 'muted small', text: 'Sem sideboard: em Bo1 não faz falta (não há trocas entre partidas).' }));
+      }
+    }
     if (sg && ((sg.craft || []).length || (sg.tenho || []).length)) {
       out.push(agCurva(r));
       out.push(h('div', null, sgHead('✓', 'Cartas que já tens na coleção e encaixam'),
