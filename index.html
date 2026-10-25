@@ -182,6 +182,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .tx-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .tx-row > * { flex: 1 1 140px; }
 .sheet .bar { flex-wrap: wrap; }
+.sheet .bar .back { padding: 7px 10px; font-size: 14px; min-height: 40px; white-space: nowrap; }
 .sheet .bar .xbtn { margin-left: auto; font-size: 13px; }
 /* botões do topo, selo nos Alertas, edição de decks */
 .who .tbtn { min-width: 36px; min-height: 36px; padding: 4px 8px; line-height: 1; font-size: 16px; }
@@ -442,7 +443,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "40";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "41";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1801,7 +1802,8 @@ async function openDeck(d, startEdit) {
     ED.on = !ED.on; edBtn.textContent = ED.on ? '✓ Concluir' : '✎ Editar'; paintTools(); paint();
   } });
   sheet.appendChild(h('div', { class: 'wrap' },
-    h('div', { class: 'bar' }, h('button', { class: 'back', type: 'button', text: '← Decks', onclick: close }), title, h('div', { class: 'row', style: 'margin-left:auto' }, edBtn, xbtn)),
+    h('div', { class: 'bar', style: 'justify-content:space-between;flex-wrap:nowrap' }, h('button', { class: 'back', type: 'button', text: '← Decks', onclick: close }), h('div', { class: 'row', style: 'margin-left:auto;flex-wrap:nowrap' }, edBtn, xbtn)),
+    h('div', { style: 'margin:2px 2px 10px' }, title),
     body));
   document.body.appendChild(sheet); document.body.style.overflow = 'hidden';
   document.addEventListener('keydown', key); ovPush(close);
@@ -1925,6 +1927,33 @@ function agCurva(r) {   // curva do deck + (a tracejado) o que as sugestões acr
     })),
     h('div', { class: 'leg' }, h('span', null, h('b'), 'o teu deck'), h('span', null, h('b', { class: 'g' }), 'sugestões (por custo)')));
 }
+function agPlano(r) {   // plano do Uligod'eYes: o que cortar/trocar/entrar e a mana antes → depois (contas exatas)
+  var pl = r.plano; if (!pl || !(pl.passos || []).length) return null;
+  var a = pl.antes || {}, b = pl.depois || {}, CN = { W: 'branco', U: 'azul', B: 'preto', R: 'vermelho', G: 'verde' };
+  var f1 = function (v) { return String(Math.round(v * 10) / 10).replace('.', ','); };
+  var par = function (x, y, bom) {   // antes → depois com cor conforme melhora
+    var dlt = y - x, cl = Math.abs(dlt) < 0.5 ? '' : (bom ? dlt > 0 : dlt < 0) ? 'ok' : 'warn';
+    return h('span', { class: 'chip ' + cl, text: f1(x) + ' → ' + f1(y) + ' %' });
+  };
+  var lin = function (rot, x, y, bom, tip) { return h('div', { class: 'row', style: 'justify-content:space-between', title: tip }, h('span', { class: 'small', text: rot }), par(x, y, bom)); };
+  var cores = (a.cores || []).map(function (c, i) {
+    var d2 = (b.cores || [])[i] || c;
+    return h('div', { class: 'dm' }, h('div', { class: 'l1' }, h('span', { class: 'sym ' + c.cor, text: c.cor, title: CN[c.cor] }),
+      h('span', { class: 'small', text: c.fontes + ' → ' + d2.fontes + ' fontes' }),
+      h('span', { style: 'margin-left:auto;display:flex;gap:4px' }, h('span', { class: 'chip', title: 'Turno 2: pelo menos 1 fonte', text: 'T2 ' + Math.round(c.t2) + ' → ' + Math.round(d2.t2) }),
+        c.max_simbolos >= 2 ? h('span', { class: 'chip', title: 'Turno 4: pelo menos 2 fontes', text: '2× T4 ' + Math.round(c.t4) + ' → ' + Math.round(d2.t4) }) : null)));
+  });
+  var cortes = r.cortes;
+  return h('div', { class: 'note plano' }, h('div', { class: 'small', style: 'font-weight:700', text: '🧪 Plano do Uligod\'eYes · simulado' }),
+    h('p', { class: 'muted small', text: 'Aplico os passos pela ordem e volto a medir a mana do deck, com as mesmas contas exatas.' }),
+    h('ol', { class: 'small', style: 'margin:6px 0 6px 18px;padding:0' }, pl.passos.map(function (p) { return h('li', { text: p.texto }); })),
+    cortes && (cortes.alternativas || []).length ? h('p', { class: 'muted small', text: 'Se preferires cortar outras: ' + cortes.alternativas.join(', ') + '.' }) : null,
+    h('div', { style: 'margin-top:6px' },
+      h('div', { class: 'row', style: 'justify-content:space-between' }, h('span', { class: 'small', text: 'Main / terrenos' }), h('span', { class: 'chip', text: a.baralho + ' → ' + b.baralho + ' cartas · ' + a.terrenos + ' → ' + b.terrenos + ' terrenos' })),
+      lin('Mão com 2–4 terrenos', a.mao_2a4, b.mao_2a4, true, 'Mão de 7 cartas'),
+      lin('Mão má (0–1 ou 6–7 terrenos)', a.mao_ma, b.mao_ma, false, 'Quanto menor, melhor'),
+      cores));
+}
 function agentCard(d, box) {
   var st = { last: null, timer: null, busy: false, bridge: null, thumbs: [], imgs: {}, filtros: ['', '', ''] };
   var FKEY = 'ag-filtros-' + d.deck_id;
@@ -1983,13 +2012,14 @@ function agentCard(d, box) {
       r.sugestoes && r.sugestoes.filtro_fora && r.sugestoes.filtro_fora.total ? h('div', { class: 'small muted', text: r.sugestoes.filtro_fora.total + ' cartas com as tuas palavras ficaram de fora por cor ou custo (ex.: ' + r.sugestoes.filtro_fora.exemplos.slice(0, 4).join(', ') + ').' }) : null));
     out.push(agVeredito(r));
     var tp5 = agTop(r); if (tp5) out.push(tp5);
+    var plano = agPlano(r); if (plano) out.push(plano);
     if (stale) out.push(h('div', { class: 'note warn', text: 'O deck mudou depois desta análise. Analisa de novo para atualizar.' }));
     (lg.violacoes || []).forEach(function (v) {
       var tx = v.texto || '';
       if (tx.charAt(0) === '{') { try { var j = JSON.parse(tx); tx = j.legality === 'banned' ? 'está banida neste formato' : j.legality === 'not_legal' ? 'não é legal neste formato' : j.legality === 'restricted' ? 'está restrita (só 1 cópia)' : tx; } catch (e) { /* mantém */ } }
       out.push(h('div', { class: 'note bad', text: (v.carta ? v.carta + ': ' : (AG_PT.viol[v.tipo] || v.tipo) + ': ') + tx }));
     });
-    if (r.tamanho) out.push(h('div', { class: 'note warn', text: 'O main tem ' + r.tamanho.main + ' cartas (o mínimo é ' + r.tamanho.minimo + '). Cada carta a mais dilui o deck' + ((r.tamanho.ilegais || []).length === r.tamanho.excesso ? ': tirar ' + r.tamanho.ilegais.join(' e ') + ' (ilegais no formato) deixa-o em ' + r.tamanho.minimo + '.' : '.') }));
+    if (r.tamanho && !(r.plano && (r.plano.passos || []).length)) out.push(h('div', { class: 'note warn', text: 'O main tem ' + r.tamanho.main + ' cartas (o mínimo é ' + r.tamanho.minimo + '). Cada carta a mais dilui o deck' + ((r.tamanho.ilegais || []).length === r.tamanho.excesso ? ': tirar ' + r.tamanho.ilegais.join(' e ') + ' (ilegais no formato) deixa-o em ' + r.tamanho.minimo + '.' : '.') }));
     out.push(h('div', { class: 'grid4' },
       [[e.terrenos, 'Terrenos'], [e.criaturas, 'Criaturas'], [e.cmc_medio, 'Custo médio'], [e.game_changers, 'Game Changers']].map(function (x) { return h('div', { class: 'stat' }, h('b', { class: 'num', text: x[0] == null ? '–' : String(x[0]).replace('.', ',') }), h('span', { text: x[1] })); })));
     (m.avisos || []).forEach(function (w) { out.push(h('div', { class: 'note warn', text: String(w) })); });
