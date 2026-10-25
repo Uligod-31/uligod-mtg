@@ -218,6 +218,21 @@ nav.tabs button { position: relative; }
 .verdict { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--grad) border-box; border: 1.5px solid transparent; }
 .verdict b { font-weight: 600; }
 .verdict ul { margin: 6px 0 0; padding-left: 18px; }
+.sg .th { width: 54px; height: 75px; }
+.sg .sgth { display: block; }
+.sg .tx { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.sg .tx.open { display: block; }
+.sg .mais { font-size: 11.5px; color: var(--accent); }
+.sgh { margin-top: 10px; }
+.dm { padding: 8px 0; border-top: 1px solid var(--line); }
+.dm .l1 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.dm .bars { display: grid; gap: 3px; margin-top: 6px; }
+.dm .bars i { display: block; height: 6px; border-radius: 3px; }
+.dm .bars .need { background: transparent; border: 1px solid var(--hot); }
+.dm .bars .have { background: var(--grad); }
+.leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--fg-3); }
+.leg b { display: inline-block; width: 12px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; background: var(--grad); }
+.leg b.g { background: var(--hot-soft); border: 1.5px dashed var(--hot); box-sizing: border-box; }
 .eyes-h { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-size: 15px; }
 .sync-prog { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
 .sync-prog i { display: block; height: 100%; background: var(--grad); transition: width .5s; }
@@ -419,7 +434,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "35";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "36";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -631,7 +646,8 @@ function manaCost(mc) {
   if (!toks) return null;
   return h('span', { class: 'cost', 'aria-label': 'Custo de mana: ' + mc.replace(/[{}]/g, ' ') }, toks.map(function (s) {
     if (s === '//') return h('span', { class: 'muted small', text: '//' });
-    var t = s.slice(1, -1);
+    var t = s.slice(1, -1), HY = { W: '#f4efd6', U: '#5aa0d8', B: '#4a4348', R: '#d9573e', G: '#4aa564' };
+    if (/^[WUBRG]\/[WUBRG]$/.test(t)) return h('span', { class: 'sym', 'aria-hidden': 'true', style: 'background:linear-gradient(135deg,' + HY[t[0]] + ' 50%,' + HY[t[2]] + ' 50%);color:#111;text-shadow:0 0 2px #fff8', text: t.replace(/\//g, '') });
     return h('span', { class: 'sym ' + (/^[WUBRG]$/.test(t) ? t : ''), 'aria-hidden': 'true', text: t.replace(/\//g, '') });
   }));
 }
@@ -1847,6 +1863,36 @@ function agVeredito(r) {   // «Em resumo»: o que o Uligod'eYes diria em voz al
   if (cab) it.push(cab + ' cartas a craftar cabem nas tuas wildcards' + ((cr.custo && sg.craft) ? '' : '') + '.');
   return h('div', { class: 'verdict' }, h('div', null, 'Deck ', h('b', { text: forma }), ' · ', h('b', { text: (r.deck && r.deck.cartas) + ' cartas' })), h('ul', null, it.map(function (t) { return h('li', { class: 'small', text: t }); })));
 }
+function agCusto(c) {   // símbolos de mana; sem custo em símbolos (cartas viradas/preparadas) mostra o custo total num círculo
+  if (c.custo_mana) return manaCost(c.custo_mana);
+  return h('span', { class: 'cost', 'aria-label': 'Custo ' + c.cmc }, h('span', { class: 'sym', 'aria-hidden': 'true', text: c.cmc != null ? String(c.cmc) : '?' }));
+}
+function agMana(r) {   // fontes de cor vs. procura, mão inicial e cartas de cor secundária (contas exatas, sem IA)
+  var t = r.terrenos; if (!t) return null;
+  var cons = t.consistencia || {}, CN = { W: 'branco', U: 'azul', B: 'preto', R: 'vermelho', G: 'verde' }, f1 = function (v) { return String(Math.round(v * 10) / 10).replace('.', ','); };
+  var pc = function (v) { return v >= 85 ? 'ok' : v >= 70 ? 'warn' : 'bad'; };
+  var tot = Object.keys(t.fontes || {}).reduce(function (a, k) { return a + t.fontes[k]; }, 0) || 1;
+  var linhas = (cons.cores || []).map(function (c) {
+    var dem = (t.demanda_pct || {})[c.cor] || 0, of = (t.fontes[c.cor] || 0) / tot * 100;
+    return h('div', { class: 'dm' }, h('div', { class: 'l1' }, h('span', { class: 'sym ' + c.cor, text: c.cor, title: CN[c.cor] }),
+      h('span', { class: 'small', text: 'pede ' + f1(dem) + ' % · ' + c.fontes + ' fontes' }),
+      h('span', { class: 'chip ' + pc(c.t2_uma), style: 'margin-left:auto', title: 'Probabilidade de ter pelo menos 1 fonte desta cor até ao turno 2', text: 'T2 ' + Math.round(c.t2_uma) + ' %' }),
+      c.max_simbolos >= 2 ? h('span', { class: 'chip ' + pc(c.t4_duas), title: 'Probabilidade de ter pelo menos 2 fontes desta cor até ao turno 4 (cartas com dois símbolos)', text: '2× T4 ' + Math.round(c.t4_duas) + ' %' }) : null),
+      h('div', { class: 'bars', title: 'contorno: o que o deck pede · cheio: a quota das tuas fontes' }, h('i', { class: 'need', style: 'width:' + Math.min(100, dem * 1.5) + '%' }), h('i', { class: 'have', style: 'width:' + Math.min(100, of * 1.5) + '%' })));
+  });
+  var out = [h('div', { class: 'row', style: 'justify-content:space-between' }, h('div', { class: 'small', style: 'font-weight:600' }, 'Mana e terrenos'),
+    h('span', { class: 'chip', text: t.total + ' terrenos' + (t.banda ? ' · ideal ' + t.banda.min + '–' + t.banda.max : '') })), h('div', null, linhas)];
+  if (cons.mao_2a4_terrenos != null) out.push(h('div', { class: 'pips' },
+    h('span', { class: 'chip ' + pc(cons.mao_2a4_terrenos + 10), title: 'Mão de 7 cartas com 2 a 4 terrenos', text: 'Mão com 2–4 terrenos ' + f1(cons.mao_2a4_terrenos) + ' %' }),
+    h('span', { class: 'chip ' + (cons.mao_ma > 20 ? 'warn' : 'ok'), title: '0–1 ou 6–7 terrenos na mão inicial', text: 'Mão má ' + f1(cons.mao_ma) + ' %' }),
+    h('span', { class: 'chip', title: 'Pelo menos 3 terrenos até ao turno 3', text: '3 terrenos no T3 · ' + Math.round(cons.tres_terrenos_t3_jogar) + ' % a jogar · ' + Math.round(cons.tres_terrenos_t3_comprar) + ' % a comprar' })));
+  (t.splash || []).filter(function (x) { return (x.cartas || []).length; }).forEach(function (x) {
+    out.push(h('div', { class: 'note warn' }, h('div', null, 'A cor ' + CN[x.cor] + ' pesa só ' + f1(x.pct) + ' % e serve ' + x.cartas.length + (x.cartas.length === 1 ? ' carta' : ' cartas') + ', mas ocupa ' + x.fontes + ' fontes. Se as cortares, esses terrenos passam a ajudar as cores fortes:'),
+      h('div', { class: 'pips', style: 'margin-top:6px' }, x.cartas.map(function (n) { return h('span', { class: 'chip' }, cardLink({ name: n }, n)); }))));
+  });
+  out.push(h('p', { class: 'muted small', text: 'Contas exatas (hipergeométrica) para um baralho de ' + cons.baralho + ' cartas, sem ajustes do Arena. T2/T4: turno 2 e turno 4, a jogar primeiro.' }));
+  return h('div', { class: 'stack' }, out);
+}
 function agCurva(r) {   // curva do deck + (a tracejado) o que as sugestões acrescentam
   var base = (r.estatisticas && r.estatisticas.curva) || {}, sg = r.sugestoes || {}, ghost = {}, i;
   (sg.tenho || []).concat(sg.craft || []).forEach(function (c) { var k = Math.min(7, Math.floor(Number(c.cmc) || 0)); ghost[k] = (ghost[k] || 0) + 1; });
@@ -1856,7 +1902,7 @@ function agCurva(r) {   // curva do deck + (a tracejado) o que as sugestões acr
     h('div', { class: 'cv2', style: 'margin-top:6px' }, tot.map(function (t, k) {
       return h('div', null, h('span', { text: t[0] + (t[1] ? '+' + t[1] : '') }), t[1] ? h('i', { class: 'g', style: 'height:' + Math.round(t[1] / mx * 56) + 'px' }) : null, h('i', { class: 'b', style: 'height:' + Math.max(2, Math.round(t[0] / mx * 56)) + 'px' }), h('span', { text: k === 7 ? '7+' : k }));
     })),
-    h('p', { class: 'muted small', text: 'Barras cheias: o teu deck. Tracejado: as cartas sugeridas, por custo.' }));
+    h('div', { class: 'leg' }, h('span', null, h('b'), 'o teu deck'), h('span', null, h('b', { class: 'g' }), 'sugestões (por custo)')));
 }
 function agentCard(d, box) {
   var st = { last: null, timer: null, busy: false, bridge: null, thumbs: [], imgs: {} };
@@ -1912,14 +1958,10 @@ function agentCard(d, box) {
     if (r.tamanho) out.push(h('div', { class: 'note warn', text: 'O main tem ' + r.tamanho.main + ' cartas (o mínimo é ' + r.tamanho.minimo + '). Cada carta a mais dilui o deck' + ((r.tamanho.ilegais || []).length === r.tamanho.excesso ? ': tirar ' + r.tamanho.ilegais.join(' e ') + ' (ilegais no formato) deixa-o em ' + r.tamanho.minimo + '.' : '.') }));
     out.push(h('div', { class: 'grid4' },
       [[e.terrenos, 'Terrenos'], [e.criaturas, 'Criaturas'], [e.cmc_medio, 'Custo médio'], [e.game_changers, 'Game Changers']].map(function (x) { return h('div', { class: 'stat' }, h('b', { class: 'num', text: x[0] == null ? '–' : String(x[0]).replace('.', ',') }), h('span', { text: x[1] })); })));
-    if (e.fontes_de_cor && m.demanda_pct) {
-      var cn = { W: 'Branco', U: 'Azul', B: 'Preto', R: 'Vermelho', G: 'Verde' };
-      out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Cores: símbolos de mana pedidos / terrenos que as produzem'), h('div', { class: 'pips' },
-        Object.keys(m.demanda_pct).map(function (c) { return h('span', { class: 'chip', title: cn[c] }, h('span', { class: 'sym ' + c, 'aria-hidden': 'true', text: c }), m.demanda_pct[c] + '% / ' + ((m.producao_pct || {})[c] || 0) + '%'); }))));
-    }
     (m.avisos || []).forEach(function (w) { out.push(h('div', { class: 'note warn', text: String(w) })); });
     if (af.bandas && af.bandas.length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Equilíbrio do deck'), af.bandas.map(bandRow)));
     if (af.eixos && af.eixos.length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Temas fortes'), h('div', { class: 'pips' }, af.eixos.map(function (x) { return h('span', { class: 'chip hot', text: agTema(x.nome) + ' · ' + x.cartas + ' cartas' }); }))));
+    var mn = agMana(r); if (mn) out.push(mn);
     // craft
     var tot = ['mythic', 'rare', 'uncommon', 'common'].reduce(function (s, k) { return s + ((cr.custo || {})[k] || 0); }, 0);
     out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Para montar este deck'),
@@ -1930,27 +1972,35 @@ function agentCard(d, box) {
         h('p', { class: 'small ' + (cr.cabe_na_carteira ? '' : 'muted'), text: cr.cabe_na_carteira ? 'Cabe nas tuas wildcards.' : 'As tuas wildcards não chegam.' }),
         (cr.cartas || []).length ? h('p', { class: 'small muted', text: 'Faltam: ' + cr.cartas.map(function (c) { return c.faltam + '× ' + c.name; }).join(', ') }) : null)));
     var sg = r.sugestoes;
+    var sgRow = function (c, o) {
+      o = o || {};
+      var th = h('span', { class: 'sgth' }, emptyThumb());
+      st.thumbs.push({ name: c.nome, el: th, done: false });
+      var ritmo = c.ritmo ? h('span', { class: 'chip ' + (c.ritmo === 'livre' ? 'ok' : c.ritmo === 'condicional' ? 'warn' : ''), title: c.ritmo === 'livre' ? 'Entra virado para cima' : c.ritmo === 'condicional' ? 'Entra virado a menos que cumpras uma condição (ou pagues vida)' : 'Entra sempre virado', text: c.ritmo === 'livre' ? 'entra livre' : c.ritmo === 'condicional' ? 'condicional' : 'entra virado' }) : null;
+      var chip = c.raridade ? h('span', { class: 'chip ' + (c.cabe ? 'ok' : 'warn'), style: 'margin-left:auto', title: c.cabe ? 'Cabe nas tuas wildcards' : 'Não chega nas wildcards' }, h('i', { class: 'dot ' + c.raridade }), ' ' + (AG_PT.rar[c.raridade] || c.raridade)) : h('span', { class: 'chip ok', style: 'margin-left:auto', text: 'tenho ×' + c.copias });
+      var tx = c.texto ? h('div', { class: 'tx', title: 'Toca para ver tudo', text: c.texto + (c.texto.length >= 220 ? '…' : ''), onclick: function (e) { e.currentTarget.classList.toggle('open'); } }) : null;
+      return h('div', { class: 'sg' }, h('i', { class: 'strip', style: 'background:' + agCorFundo(c.cores), 'aria-hidden': 'true' }), th,
+        h('div', null,
+          h('div', { class: 'nm' }, cardLink({ name: c.nome }, c.nome), o.terreno ? h('span', { class: 'muted small', text: 'produz' }) : null, agCusto(c),
+            (c.cores || []).length > 1 && !o.terreno ? h('span', { class: 'chip hot', title: 'Carta multicolor', text: 'mista' }) : null, ritmo, chip),
+          h('div', { class: 'muted small', text: (c.tipo || '') + (c.tema ? ' · ' + agTema(c.tema) : '') }),
+          tx,
+          c.sai ? h('div', { class: 'sai' }, '⇄ Podia substituir ', cardLink({ name: c.sai }, c.sai)) : null));
+    };
+    var sgHead = function (ico, t) { return h('div', { class: 'sgh' }, h('i', { 'aria-hidden': 'true', text: ico }), t); };
     if (sg && ((sg.craft || []).length || (sg.tenho || []).length)) {
-      var sgRow = function (c) {
-        var th = h('span', { class: 'sgth' }, emptyThumb());
-        var chip = c.raridade ? h('span', { class: 'chip ' + (c.cabe ? 'ok' : 'warn'), style: 'margin-left:auto', title: c.cabe ? 'Cabe nas tuas wildcards' : 'Não chega nas wildcards' }, h('i', { class: 'dot ' + c.raridade }), ' ' + (AG_PT.rar[c.raridade] || c.raridade)) : h('span', { class: 'chip ok', style: 'margin-left:auto', text: 'tenho ×' + c.copias });
-        st.thumbs.push({ name: c.nome, el: th, done: false });
-        return h('div', { class: 'sg' }, h('i', { class: 'strip', style: 'background:' + agCorFundo(c.cores), 'aria-hidden': 'true' }), th,
-          h('div', null,
-            h('div', { class: 'nm' }, cardLink({ name: c.nome }, c.nome), c.custo_mana ? manaCost(c.custo_mana) : h('span', { class: 'muted small', text: 'custo ' + (c.cmc != null ? c.cmc : '?') }), chip),
-            h('div', { class: 'muted small', text: (c.tipo || '') + (c.tema ? ' · ' + agTema(c.tema) : '') }),
-            c.texto ? h('div', { class: 'tx', text: c.texto + (c.texto.length >= 220 ? '…' : '') }) : null,
-            c.sai ? h('div', { class: 'sai' }, 'Podia substituir ', cardLink({ name: c.sai }, c.sai)) : null));
-      };
-      var sgHead = function (ico, t) { return h('div', { class: 'sgh' }, h('i', { 'aria-hidden': 'true', text: ico }), t); };
       out.push(agCurva(r));
       out.push(h('div', null, sgHead('✓', 'Cartas que já tens na coleção e encaixam'),
-        (sg.tenho || []).length ? sg.tenho.map(sgRow) : h('p', { class: 'muted small', text: 'Nenhuma carta da coleção com ligação forte ao plano do deck.' })));
+        (sg.tenho || []).length ? sg.tenho.map(function (c) { return sgRow(c); }) : h('p', { class: 'muted small', text: 'Nenhuma carta da coleção com ligação forte ao plano do deck.' })));
       out.push(h('div', null, sgHead('✦', 'Cartas que encaixam e ainda não tens (a craftar)'),
-        (sg.craft || []).length ? sg.craft.map(sgRow) : h('p', { class: 'muted small', text: 'Nada a craftar com ligação forte ao deck.' }),
+        (sg.craft || []).length ? sg.craft.map(function (c) { return sgRow(c); }) : h('p', { class: 'muted small', text: 'Nada a craftar com ligação forte ao deck.' }),
         sg.carteira_depois ? h('p', { class: 'muted small', text: 'Se craftares todas as que cabem, ficas com ' + ['mythic', 'rare', 'uncommon', 'common'].map(function (k) { return sg.carteira_depois[k] + ' ' + AG_PT.rarp[k]; }).join(', ') + '.' }) : null));
       out.push(h('p', { class: 'muted small', text: sg.nota || '' }));
     }
+    var tr = r.terrenos;
+    if (tr && (tr.sugestoes || []).length) out.push(h('div', null, sgHead('◆', 'Terrenos que melhoram a mana'),
+      h('p', { class: 'muted small', text: 'Duais e fixadores das tuas cores fortes que substituem terrenos básicos. Dão cores sem custo extra (ignoro os que pedem {1} para filtrar ou só servem criaturas de um tipo).' }),
+      tr.sugestoes.map(function (c) { return sgRow({ nome: c.nome, cores: c.cores, custo_mana: c.cores.map(function (x) { return '{' + x + '}'; }).join(''), tipo: c.tipo, texto: c.texto, sai: c.sai, raridade: c.raridade, cabe: c.cabe, copias: c.copias, ritmo: c.ritmo, tema: '' }, { terreno: true }); })));
     // pontos e trocas
     if ((af.pontos || []).length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Pontos a melhorar'),
       af.pontos.filter(function (p) { return !(r.combos && (r.combos.quase || []).length && /completes/.test(p.texto || '')); }).map(function (p) {
