@@ -116,6 +116,10 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--fg-2); }
 .btn.ghost:hover { border-color: var(--hot); color: var(--hot); }
 .btn:disabled { opacity: .5; cursor: default; }
 .list { display: grid; gap: 8px; }
+.deckwrap { position: relative; }
+.deckwrap .deck .t { padding-right: 44px; }
+.deckwrap .dx { position: absolute; top: 6px; right: 6px; z-index: 1; width: 38px; height: 38px; min-height: 0; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg-2); font-size: 15px; line-height: 1; }
+.deckwrap .dx:hover, .deckwrap .dx:focus-visible { color: var(--bad); border-color: var(--bad); }
 .deck { display: grid; gap: 6px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .deck .t { font-weight: 600; overflow-wrap: anywhere; }
 .deck .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -200,6 +204,7 @@ nav.tabs button { position: relative; }
 .rel .chip { border: 1px solid var(--line); cursor: pointer; font: inherit; font-size: 12.5px; min-height: 32px; }
 .qr { width: min(100%, 220px); aspect-ratio: 1; margin: 0 auto; background: #fff; border-radius: 10px; padding: 8px; display: block; }
 .secret { font: 500 13px var(--mono); overflow-wrap: anywhere; text-align: center; user-select: all; }
+.eyes-h { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-size: 15px; }
 .sync-prog { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
 .sync-prog i { display: block; height: 100%; background: var(--grad); transition: width .5s; }
 .sync-res { display: grid; gap: 4px; font-size: 13.5px; }
@@ -400,7 +405,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "32";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "33";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1564,13 +1569,21 @@ function viewDecks() {
 function deckRow(d) {
   var probs = deckProblems(d);
   var total = d.main_count + (d.command_count || 0);
-  return h('button', { class: 'deck', type: 'button', onclick: function () { openDeck(d); } },
+  var del = h('button', { class: 'dx', type: 'button', title: 'Apagar este deck da lista', 'aria-label': 'Apagar o deck ' + d.name, text: '✕', onclick: async function (e) {
+    e.stopPropagation();
+    if (!needOnline()) return;
+    if (!window.confirm('Apagar o deck «' + d.name + '» da app?' + (d.source === 'log' ? ' No Arena o deck não é afetado, mas «Atualizar do jogo» volta a trazê-lo.' : ' Não dá para desfazer.'))) return;
+    del.disabled = true;
+    try { await deleteDeckRows(d.deck_id); await loadAll(); render(); toast('Deck apagado: ' + d.name); }
+    catch (x) { del.disabled = false; toast('Não consegui apagar: ' + x.message); }
+  } });
+  return h('div', { class: 'deckwrap' }, del, h('button', { class: 'deck', type: 'button', onclick: function () { openDeck(d); } },
     h('div', { class: 't', text: d.name }),
     h('div', { class: 'meta' },
       h('span', { class: 'chip acc', text: d.format_name }),
       h('span', { class: 'chip num', text: total + (d.side_count ? ' + ' + d.side_count : '') }),
       d.is_bo1 ? null : h('span', { class: 'chip', text: 'Bo3' }),
-      probs.length ? probs.slice(0, 2).map(function (p) { return h('span', { class: 'chip ' + p.k, text: p.t }); }) : h('span', { class: 'chip ok', text: 'Legal' })));
+      probs.length ? probs.slice(0, 2).map(function (p) { return h('span', { class: 'chip ' + p.k, text: p.t }); }) : h('span', { class: 'chip ok', text: 'Legal' }))));
 }
 // Linhas do deck (catálogo + cartas «extra» guardadas só pelo nome) e resumo do que falta craftar
 async function loadDeckLines(d) {
@@ -1761,8 +1774,16 @@ async function openDeck(d, startEdit) {
     paint();
   } catch (e) { fill(detailBox, h('div', { class: 'note bad', text: (S.offline ? 'Sem ligação: abre o deck quando estiveres online. ' : 'Não foi possível carregar o deck: ') + e.message })); }
 }
-/* ---------- Agente: análise do deck (ferramentas mtg-utils no PC, via ponte) ---------- */
+/* ---------- Uligod'eYes: análise do deck (ferramentas mtg-utils no PC, via ponte) ---------- */
 // A app cria um pedido em deck_analyses; a ponte do PC corre agente/analisar_deck.py e devolve um resumo (só leitura: nunca altera o deck).
+function eyeIcon() {   // olho com gradiente da marca (o «Y» de Uligod'eYes como pupila)
+  var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('width', '20'); svg.setAttribute('height', '20'); svg.setAttribute('aria-hidden', 'true'); svg.style.verticalAlign = '-4px';
+  svg.innerHTML = '<defs><linearGradient id="eyeg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b74f2"/><stop offset=".55" stop-color="#8a4bea"/><stop offset="1" stop-color="#e02bc0"/></linearGradient></defs>' +
+    '<path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7S18.5 19 12 19 1.5 12 1.5 12Z" fill="none" stroke="url(#eyeg)" stroke-width="1.8" stroke-linejoin="round"/>' +
+    '<circle cx="12" cy="12" r="4" fill="url(#eyeg)"/><path d="M10.4 10.4 12 12.2l1.6-1.8M12 12.2v2" fill="none" stroke="#15161a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>';
+  return svg;
+}
 var AG_PT = {
   shape: { aggro: 'Agressivo', midrange: 'Midrange', control: 'Controlo', combo: 'Combo' },
   verdict: { FOCUSED: 'Focado', SCATTERED: 'Disperso', 'off-template': 'Fora do modelo habitual', 'on-template': 'Dentro do modelo habitual' },
@@ -1882,7 +1903,7 @@ function agentCard(d, box) {
   function paint() {
     var a = st.last, on = st.bridge && (Date.now() - new Date(st.bridge.last_seen).getTime()) < 45000;
     var act = a && (a.status === 'pending' || a.status === 'running');
-    var parts = [h('h3', { text: 'Agente · análise do deck' })];
+    var parts = [h('h3', { class: 'eyes-h' }, eyeIcon(), " Uligod'eYes · análise do deck")];
     if (st.err) parts.push(h('div', { class: 'note bad', text: 'Não consegui ler a análise: ' + st.err }));
     if (act) {
       var pct = a.status === 'pending' ? 0 : (a.progress || 1);
@@ -1891,10 +1912,10 @@ function agentCard(d, box) {
         a.message ? h('div', { class: 'small muted', text: a.message }) : null,
         h('button', { class: 'back', type: 'button', text: 'Cancelar', onclick: cancel }));
     } else {
-      if (a && a.status === 'done' && a.result) parts.push(h('div', { class: 'muted small', text: 'Analisado ' + age(a.updated_at) + ' · só leitura: o agente nunca altera o deck.' }), h('div', { class: 'stack' }, report(a)));
+      if (a && a.status === 'done' && a.result) parts.push(h('div', { class: 'muted small', text: 'Analisado ' + age(a.updated_at) + ' · só leitura: o Uligod\'eYes nunca altera o deck.' }), h('div', { class: 'stack' }, report(a)));
       else if (a && a.status === 'error') parts.push(h('div', { class: 'note bad', text: 'A última análise falhou: ' + (a.message || 'erro desconhecido') }));
-      else if (!a && !st.err) parts.push(h('p', { class: 'small muted', text: 'O agente corre as ferramentas de análise no teu PC: legalidade, curva, base de mana, o que falta craftar, pontos fracos e trocas dentro das tuas wildcards.' }));
-      parts.push(h('button', { class: 'btn', type: 'button', disabled: st.busy || !!st.err && S.offline, text: st.busy ? 'A pedir…' : a && a.status === 'done' ? 'Analisar de novo' : 'Analisar com o agente', onclick: start }),
+      else if (!a && !st.err) parts.push(h('p', { class: 'small muted', text: 'O Uligod\'eYes corre as ferramentas de análise no teu PC: legalidade, curva, base de mana, o que falta craftar, pontos fracos, trocas e todas as cartas do formato que encaixam no deck (as que tens e as que ficam por craftar).' }));
+      parts.push(h('button', { class: 'btn', type: 'button', disabled: st.busy || !!st.err && S.offline, text: st.busy ? 'A pedir…' : a && a.status === 'done' ? 'Analisar de novo' : 'Analisar com o Uligod\'eYes', onclick: start }),
         !on && st.bridge !== undefined ? h('p', { class: 'small muted', text: 'O PC tem de estar ligado com a ponte a correr (a primeira análise demora 1 a 2 minutos).' }) : null);
     }
     fill(box, h('div', { class: 'card stack' }, parts));
