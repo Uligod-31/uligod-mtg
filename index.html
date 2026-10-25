@@ -204,6 +204,20 @@ nav.tabs button { position: relative; }
 .rel .chip { border: 1px solid var(--line); cursor: pointer; font: inherit; font-size: 12.5px; min-height: 32px; }
 .qr { width: min(100%, 220px); aspect-ratio: 1; margin: 0 auto; background: #fff; border-radius: 10px; padding: 8px; display: block; }
 .secret { font: 500 13px var(--mono); overflow-wrap: anywhere; text-align: center; user-select: all; }
+.sg { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; margin-top: 8px; padding: 10px 10px 10px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.sg .strip { position: absolute; left: 0; top: 8px; bottom: 8px; width: 5px; border-radius: 0 4px 4px 0; }
+.sg .nm { font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.sg .tx { font-size: 12.5px; color: var(--fg-2); margin-top: 2px; }
+.sg .sai { font-size: 12.5px; margin-top: 4px; padding: 3px 8px; border-radius: 8px; background: var(--surface-2); display: inline-block; }
+.sgh { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; font-weight: 600; }
+.sgh i { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-style: normal; color: #fff; background: var(--grad); font-size: 13px; }
+.cv2 { display: flex; align-items: flex-end; gap: 6px; height: 96px; }
+.cv2 > div { flex: 1; display: grid; justify-items: center; align-content: end; gap: 2px; height: 100%; font: 11px var(--mono); color: var(--fg-3); }
+.cv2 .b { width: 100%; background: var(--grad); border-radius: 3px 3px 0 0; min-height: 0; }
+.cv2 .g { width: 100%; border: 1.5px dashed var(--hot); border-bottom: 0; border-radius: 3px 3px 0 0; background: var(--hot-soft); min-height: 0; }
+.verdict { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--grad) border-box; border: 1.5px solid transparent; }
+.verdict b { font-weight: 600; }
+.verdict ul { margin: 6px 0 0; padding-left: 18px; }
 .eyes-h { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-size: 15px; }
 .sync-prog { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
 .sync-prog i { display: block; height: 100%; background: var(--grad); transition: width .5s; }
@@ -405,7 +419,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "34";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "35";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1814,8 +1828,38 @@ function agPt(t) {   // traduz as mensagens mais comuns das ferramentas; devolve
   if (m) return 'Combo a uma carta: «' + m[1] + '» completa «' + m[2] + '» → ' + m[3] + '.';
   return null;
 }
+var AG_COR = { W: '#f1ead0', U: '#5aa0d8', B: '#7d6f7a', R: '#d9573e', G: '#4aa564' };
+function agCorFundo(cores) {
+  var c = (cores || []).filter(function (x) { return AG_COR[x]; }).map(function (x) { return AG_COR[x]; });
+  if (!c.length) return '#9aa0a6';
+  if (c.length === 1) return c[0];
+  return 'linear-gradient(to bottom, ' + c.join(', ') + ')';
+}
+function agVeredito(r) {   // «Em resumo»: o que o Uligod'eYes diria em voz alta
+  var e = r.estatisticas || {}, lg = r.legalidade || {}, sg = r.sugestoes || {}, cr = r.craft || {}, af = r.afinacao || {}, it = [];
+  var forma = { aggro: 'agressivo', midrange: 'midrange', control: 'de controlo', combo: 'de combo' }[af.forma] || 'sem forma definida';
+  var viol = (lg.violacoes || []).length;
+  var cab = (sg.craft || []).filter(function (c) { return c.cabe; }).length;
+  if (viol) it.push(viol + (viol === 1 ? ' carta ilegal' : ' cartas ilegais') + ' no formato' + (r.tamanho && (r.tamanho.ilegais || []).length === r.tamanho.excesso ? ': tirá-las deixa o deck nas ' + r.tamanho.minimo + ' cartas certas' : '') + '.');
+  else it.push('Todas as cartas são legais no formato.');
+  it.push('Mana: ' + (r.mana && r.mana.estado === 'PASS' ? 'equilibrada' : 'a rever') + ' (' + (e.terrenos != null ? e.terrenos + ' terrenos, ' : '') + 'custo médio ' + String(e.cmc_medio).replace('.', ',') + ').');
+  if ((sg.tenho || []).length) it.push('Já tens ' + sg.tenho.length + ' cartas na coleção que reforçam o plano do deck.');
+  if (cab) it.push(cab + ' cartas a craftar cabem nas tuas wildcards' + ((cr.custo && sg.craft) ? '' : '') + '.');
+  return h('div', { class: 'verdict' }, h('div', null, 'Deck ', h('b', { text: forma }), ' · ', h('b', { text: (r.deck && r.deck.cartas) + ' cartas' })), h('ul', null, it.map(function (t) { return h('li', { class: 'small', text: t }); })));
+}
+function agCurva(r) {   // curva do deck + (a tracejado) o que as sugestões acrescentam
+  var base = (r.estatisticas && r.estatisticas.curva) || {}, sg = r.sugestoes || {}, ghost = {}, i;
+  (sg.tenho || []).concat(sg.craft || []).forEach(function (c) { var k = Math.min(7, Math.floor(Number(c.cmc) || 0)); ghost[k] = (ghost[k] || 0) + 1; });
+  var tot = [], mx = 1;
+  for (i = 0; i <= 7; i++) { var b = Number(base[String(i)] || 0) + (i === 7 ? Object.keys(base).filter(function (k) { return Number(k) > 7; }).reduce(function (a, k) { return a + Number(base[k]); }, 0) : 0); tot.push([b, ghost[i] || 0]); mx = Math.max(mx, b + (ghost[i] || 0)); }
+  return h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Curva de mana e o que as sugestões acrescentam'),
+    h('div', { class: 'cv2', style: 'margin-top:6px' }, tot.map(function (t, k) {
+      return h('div', null, h('span', { text: t[0] + (t[1] ? '+' + t[1] : '') }), t[1] ? h('i', { class: 'g', style: 'height:' + Math.round(t[1] / mx * 56) + 'px' }) : null, h('i', { class: 'b', style: 'height:' + Math.max(2, Math.round(t[0] / mx * 56)) + 'px' }), h('span', { text: k === 7 ? '7+' : k }));
+    })),
+    h('p', { class: 'muted small', text: 'Barras cheias: o teu deck. Tracejado: as cartas sugeridas, por custo.' }));
+}
 function agentCard(d, box) {
-  var st = { last: null, timer: null, busy: false, bridge: null };
+  var st = { last: null, timer: null, busy: false, bridge: null, thumbs: [], imgs: {} };
   var age = function (iso) { var s = (Date.now() - new Date(iso).getTime()) / 1000; return s < 90 ? 'agora mesmo' : s < 3600 ? 'há ' + Math.round(s / 60) + ' min' : s < 86400 ? 'há ' + Math.round(s / 3600) + ' h' : 'há ' + Math.round(s / 86400) + ' dias'; };
   async function load() {
     try {
@@ -1858,6 +1902,7 @@ function agentCard(d, box) {
     out.push(h('div', { class: 'row', style: 'flex-wrap:wrap' }, statChip(lg.estado, 'Legalidade'), statChip(m.estado, 'Mana'),
       af.forma ? h('span', { class: 'chip acc', text: AG_PT.shape[af.forma] || af.forma }) : null,
       af.veredito_foco ? h('span', { class: 'chip', text: AG_PT.verdict[af.veredito_foco] || af.veredito_foco }) : null));
+    out.push(agVeredito(r));
     if (stale) out.push(h('div', { class: 'note warn', text: 'O deck mudou depois desta análise. Analisa de novo para atualizar.' }));
     (lg.violacoes || []).forEach(function (v) {
       var tx = v.texto || '';
@@ -1887,17 +1932,23 @@ function agentCard(d, box) {
     var sg = r.sugestoes;
     if (sg && ((sg.craft || []).length || (sg.tenho || []).length)) {
       var sgRow = function (c) {
-        return h('div', { class: 'cl', style: 'grid-template-columns:1fr auto' }, h('span', null,
-          h('b', null, cardLink({ name: c.nome }, c.nome)),
-          h('div', { class: 'muted small', text: (c.tipo ? c.tipo + ' · ' : '') + 'custo ' + (c.cmc != null ? c.cmc : '?') + ' · ' + agTema(c.tema) }),
-          c.texto ? h('div', { class: 'small', style: 'color:var(--fg-2)', text: c.texto + (c.texto.length >= 220 ? '…' : '') }) : null,
-          c.sai ? h('div', { class: 'small' }, 'Podia substituir: ', cardLink({ name: c.sai }, c.sai)) : null),
-          c.raridade ? h('span', { class: 'chip ' + (c.cabe ? 'ok' : 'warn'), title: c.cabe ? 'Cabe nas tuas wildcards' : 'Não chega nas wildcards' }, h('i', { class: 'dot ' + c.raridade }), ' ' + (AG_PT.rar[c.raridade] || c.raridade)) : h('span', { class: 'chip ok', text: 'tenho ×' + c.copias }));
+        var th = h('span', { class: 'sgth' }, emptyThumb());
+        var chip = c.raridade ? h('span', { class: 'chip ' + (c.cabe ? 'ok' : 'warn'), style: 'margin-left:auto', title: c.cabe ? 'Cabe nas tuas wildcards' : 'Não chega nas wildcards' }, h('i', { class: 'dot ' + c.raridade }), ' ' + (AG_PT.rar[c.raridade] || c.raridade)) : h('span', { class: 'chip ok', style: 'margin-left:auto', text: 'tenho ×' + c.copias });
+        st.thumbs.push({ name: c.nome, el: th, done: false });
+        return h('div', { class: 'sg' }, h('i', { class: 'strip', style: 'background:' + agCorFundo(c.cores), 'aria-hidden': 'true' }), th,
+          h('div', null,
+            h('div', { class: 'nm' }, cardLink({ name: c.nome }, c.nome), c.custo_mana ? manaCost(c.custo_mana) : h('span', { class: 'muted small', text: 'custo ' + (c.cmc != null ? c.cmc : '?') }), chip),
+            h('div', { class: 'muted small', text: (c.tipo || '') + (c.tema ? ' · ' + agTema(c.tema) : '') }),
+            c.texto ? h('div', { class: 'tx', text: c.texto + (c.texto.length >= 220 ? '…' : '') }) : null,
+            c.sai ? h('div', { class: 'sai' }, 'Podia substituir ', cardLink({ name: c.sai }, c.sai)) : null));
       };
-      out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Cartas que encaixam e ainda não tens (a craftar)'),
+      var sgHead = function (ico, t) { return h('div', { class: 'sgh' }, h('i', { 'aria-hidden': 'true', text: ico }), t); };
+      out.push(agCurva(r));
+      out.push(h('div', null, sgHead('✓', 'Cartas que já tens na coleção e encaixam'),
+        (sg.tenho || []).length ? sg.tenho.map(sgRow) : h('p', { class: 'muted small', text: 'Nenhuma carta da coleção com ligação forte ao plano do deck.' })));
+      out.push(h('div', null, sgHead('✦', 'Cartas que encaixam e ainda não tens (a craftar)'),
         (sg.craft || []).length ? sg.craft.map(sgRow) : h('p', { class: 'muted small', text: 'Nada a craftar com ligação forte ao deck.' }),
         sg.carteira_depois ? h('p', { class: 'muted small', text: 'Se craftares todas as que cabem, ficas com ' + ['mythic', 'rare', 'uncommon', 'common'].map(function (k) { return sg.carteira_depois[k] + ' ' + AG_PT.rarp[k]; }).join(', ') + '.' }) : null));
-      if ((sg.tenho || []).length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Cartas que já tens na coleção e encaixam'), sg.tenho.map(sgRow)));
       out.push(h('p', { class: 'muted small', text: sg.nota || '' }));
     }
     // pontos e trocas
@@ -1944,6 +1995,20 @@ function agentCard(d, box) {
         !on && st.bridge !== undefined ? h('p', { class: 'small muted', text: 'O PC tem de estar ligado com a ponte a correr (a primeira análise demora 1 a 2 minutos).' }) : null);
     }
     fill(box, h('div', { class: 'card stack' }, parts));
+    loadThumbs();
+  }
+  async function loadThumbs() {   // miniaturas das cartas sugeridas (catálogo da app, por nome)
+    var pend = st.thumbs.filter(function (t) { return t.el.isConnected && !t.done; });
+    if (!pend.length) return;
+    var falta = pend.map(function (t) { return t.name; }).filter(function (n) { return !(n in st.imgs); });
+    if (falta.length) {
+      try {
+        var r = await q(sb.from('cards').select('name,image_uri').in('name', falta.filter(function (n, i, a) { return a.indexOf(n) === i; })).not('image_uri', 'is', null));
+        (r.data || []).forEach(function (c) { if (!st.imgs[c.name]) st.imgs[c.name] = c; });
+      } catch (e) { /* sem rede: fica o espaço vazio */ }
+      falta.forEach(function (n) { if (!(n in st.imgs)) st.imgs[n] = null; });
+    }
+    pend.forEach(function (t) { var c = st.imgs[t.name]; if (c) { t.el.replaceChildren(thumb(c)); t.done = true; } });
   }
   paint(); load();
 }
