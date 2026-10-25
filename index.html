@@ -443,7 +443,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "42";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "43";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1953,7 +1953,17 @@ function agPlano(r) {   // plano do Uligod'eYes: o que cortar/trocar/entrar e a 
       pl.lancaveis && pl.lancaveis.antes != null ? lin('Cartas lançáveis a tempo', pl.lancaveis.antes, pl.lancaveis.depois, true, 'Média da probabilidade de teres as cores certas (turno 2, ou 2 fontes no turno 4) para lançar cada carta') : null,
       lin('Mão com 2–4 terrenos', a.mao_2a4, b.mao_2a4, true, 'Mão de 7 cartas'),
       lin('Mão má (0–1 ou 6–7 terrenos)', a.mao_ma, b.mao_ma, false, 'Quanto menor, melhor'),
-      cores));
+      cores),
+    pl.variante ? (function (v) {
+      var CN2 = { W: 'branco', U: 'azul', B: 'preto', R: 'vermelho', G: 'verde' };
+      return h('div', { class: 'note', style: 'margin-top:10px' }, h('div', { class: 'small', style: 'font-weight:700', text: '🎛️ Alternativa: jogar só com 3 cores (sem ' + (CN2[v.tirar] || v.tirar) + ')' }),
+        h('p', { class: 'muted small', text: 'O deck tem 4 cores a sério e cada terreno serve várias. Sem ' + (CN2[v.tirar] || v.tirar) + ' as fontes das outras cores sobem e as cartas lançam-se mais vezes a tempo.' }),
+        h('p', { class: 'small', text: 'Saem: ' + v.cortar.join(' · ') }),
+        h('p', { class: 'small', text: 'Entram: ' + (v.entram.length ? v.entram.map(function (c) { return c.nome + (c.copias ? '' : ' (a craftar)'); }).join(' · ') : 'nenhuma sugestão disponível') + (v.faltam ? ' · faltam ' + v.faltam + ' cartas a escolher por ti' : '') }),
+        (v.basicos || []).length ? h('p', { class: 'small', text: 'Terrenos: ' + v.basicos.map(function (m) { return m.de + ' → ' + m.para; }).join(', ') }) : null,
+        v.lancaveis != null && pl.lancaveis ? lin('Cartas lançáveis a tempo', pl.lancaveis.depois, v.lancaveis, true, 'Com o plano acima → com a alternativa de 3 cores') : null,
+        (v.depois.cores || []).map(function (c) { return h('div', { class: 'dm' }, h('div', { class: 'l1' }, h('span', { class: 'sym ' + c.cor, text: c.cor }), h('span', { class: 'small', text: c.fontes + ' fontes' }), h('span', { class: 'chip', style: 'margin-left:auto', text: 'T2 ' + Math.round(c.t2) }), c.max_simbolos >= 2 ? h('span', { class: 'chip', text: '2× T4 ' + Math.round(c.t4) }) : null)); }));
+    })(pl.variante) : null);
 }
 function agentCard(d, box) {
   var st = { last: null, timer: null, busy: false, bridge: null, thumbs: [], imgs: {}, filtros: ['', '', ''] };
