@@ -442,7 +442,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "38";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "39";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2012,22 +2012,6 @@ function agentCard(d, box) {
           c.sai ? h('div', { class: 'sai' }, '⇄ Podia substituir ', cardLink({ name: c.sai }, c.sai)) : null));
     };
     var sgHead = function (ico, t) { return h('div', { class: 'sgh' }, h('i', { 'aria-hidden': 'true', text: ico }), t); };
-    var sb2 = r.sideboard;
-    if (sb2) {
-      var bo1 = !!d.is_bo1;
-      if (sb2.tem) {
-        var subir = (sb2.cartas || []).filter(function (c) { return c.decisao === 'subir'; });
-        out.push(h('div', null, sgHead('⇧', 'O teu sideboard (' + sb2.total + ' de ' + sb2.maximo + ') · ' + subir.length + ' a subir ao main'),
-          h('p', { class: 'muted small', text: bo1 ? 'Este deck é Bo1: o sideboard não joga durante a partida, por isso o que serve ao plano do deck rende mais no main.' : 'Este deck é Bo3: antes de subir uma carta, pensa se a queres como opção de situação nas partidas 2 e 3.' }),
-          (sb2.cartas || []).slice().sort(function (a, b) { return (a.decisao === 'subir' ? 0 : 1) - (b.decisao === 'subir' ? 0 : 1); }).map(function (c) { return sgRow(c, { side: true }); })));
-      } else if (!bo1 && (sb2.sugeridas || []).length) {
-        out.push(h('div', null, sgHead('⇧', 'Sideboard sugerido (Bo3)'),
-          h('p', { class: 'muted small', text: 'O deck não tem sideboard. Para Bo3, cartas de situação das tuas cores (por papel); as que já tens vêm primeiro.' }),
-          sb2.sugeridas.map(function (c) { return sgRow(Object.assign({ cabe: true }, c, { raridade: c.copias ? null : c.raridade }), {}); })));
-      } else if (bo1) {
-        out.push(h('p', { class: 'muted small', text: 'Sem sideboard: em Bo1 não faz falta (não há trocas entre partidas).' }));
-      }
-    }
     if (sg && ((sg.craft || []).length || (sg.tenho || []).length)) {
       out.push(agCurva(r));
       out.push(h('div', null, sgHead('✓', 'Cartas que já tens na coleção e encaixam'),
@@ -2041,6 +2025,24 @@ function agentCard(d, box) {
     if (tr && (tr.sugestoes || []).length) out.push(h('div', null, sgHead('◆', 'Terrenos que melhoram a mana'),
       h('p', { class: 'muted small', text: 'Duais e fixadores das tuas cores fortes que substituem terrenos básicos. Dão cores sem custo extra (ignoro os que pedem {1} para filtrar ou só servem criaturas de um tipo).' }),
       tr.sugestoes.map(function (c) { return sgRow({ nome: c.nome, cores: c.cores, custo_mana: c.cores.map(function (x) { return '{' + x + '}'; }).join(''), tipo: c.tipo, texto: c.texto, sai: c.sai, raridade: c.raridade, cabe: c.cabe, copias: c.copias, ritmo: c.ritmo, tema: '', top: c.top, razoes: c.razoes }, { terreno: true }); })));
+    var sb2 = r.sideboard;   // Opcional: vem depois dos terrenos, existam ou não cartas no sideboard
+    var sgOpc = function (ico, t) { return h('div', { class: 'sgh' }, h('i', { 'aria-hidden': 'true', text: ico }), t, h('span', { class: 'chip', style: 'margin-left:auto', title: 'Não é prioritário', text: 'Opcional' })); };
+    if (sb2) {
+      var bo1 = !!d.is_bo1;
+      if (sb2.tem) {
+        var subir = (sb2.cartas || []).filter(function (c) { return c.decisao === 'subir'; });
+        out.push(h('div', null, sgOpc('⇧', 'Sideboard (' + sb2.total + ' de ' + sb2.maximo + ') · ' + subir.length + ' a subir ao main'),
+          h('p', { class: 'muted small', text: bo1 ? 'Este deck é Bo1: o sideboard não joga durante a partida, por isso o que serve ao plano do deck rende mais no main.' : 'Este deck é Bo3: antes de subir uma carta, pensa se a queres como opção de situação nas partidas 2 e 3.' }),
+          (sb2.cartas || []).slice().sort(function (a, b) { return (a.decisao === 'subir' ? 0 : 1) - (b.decisao === 'subir' ? 0 : 1); }).map(function (c) { return sgRow(c, { side: true }); })));
+      } else if (!bo1 && (sb2.sugeridas || []).length) {
+        out.push(h('div', null, sgOpc('⇧', 'Sem sideboard · sugestão para Bo3'),
+          h('p', { class: 'muted small', text: 'O deck não tem sideboard. Para Bo3 compensa levar cartas de situação das tuas cores, por papel; as que já tens vêm primeiro.' }),
+          sb2.sugeridas.map(function (c) { return sgRow(Object.assign({ cabe: true }, c, { raridade: c.copias ? null : c.raridade }), {}); })));
+      } else {
+        out.push(h('div', null, sgOpc('⇧', 'Sem sideboard'),
+          h('p', { class: 'muted small', text: bo1 ? 'Este deck é Bo1: não há trocas entre partidas, por isso um sideboard não melhora o deck.' : 'Não encontrei cartas de situação claras nas tuas cores que compensem um sideboard.' })));
+      }
+    }
     // pontos e trocas
     if ((af.pontos || []).length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Pontos a melhorar'),
       af.pontos.filter(function (p) { return !(r.combos && (r.combos.quase || []).length && /completes/.test(p.texto || '')); }).map(function (p) {
