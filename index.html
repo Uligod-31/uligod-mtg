@@ -400,7 +400,7 @@ nav.tabs button { position: relative; }
 'use strict';
 
 var APP_NAME = "Üligod's MTG Deck Builder";
-var APP_VERSION = "29";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
+var APP_VERSION = "30";   // tem de coincidir com o número no CACHE do sw.js (uligod-mtg-shell-vNN); subir em cada atualização
 var SUPABASE_URL = 'https://xvaegmwhzuclocdaorxm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_EIZ233QNFmZsb7EzKXCPpQ_sVrdQxIE';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1644,8 +1644,9 @@ async function openDeck(d, startEdit) {
   var sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': d.name });
   var ED = { on: false, dirty: false, lines: null, craft: null };
   var title = h('h2', { text: d.name, style: 'overflow-wrap:anywhere' });
-  var toolsBox = h('div'), detailBox = h('div');
-  var body = h('div', { class: 'stack' }, toolsBox, detailBox);
+  var toolsBox = h('div'), detailBox = h('div'), agentBox = h('div');
+  var body = h('div', { class: 'stack' }, toolsBox, agentBox, detailBox);
+  agentCard(d, agentBox);
   fill(detailBox, h('div', { class: 'card', text: 'A carregar cartas…' }));
   function key(e) { if (e.key === 'Escape' && OV.stack[OV.stack.length - 1] === close) close(); }
   function close() {
@@ -1759,6 +1760,127 @@ async function openDeck(d, startEdit) {
     if (startEdit && !S.offline) { ED.on = true; edBtn.textContent = '✓ Concluir'; paintTools(); }
     paint();
   } catch (e) { fill(detailBox, h('div', { class: 'note bad', text: (S.offline ? 'Sem ligação: abre o deck quando estiveres online. ' : 'Não foi possível carregar o deck: ') + e.message })); }
+}
+/* ---------- Agente: análise do deck (ferramentas mtg-utils no PC, via ponte) ---------- */
+// A app cria um pedido em deck_analyses; a ponte do PC corre agente/analisar_deck.py e devolve um resumo (só leitura: nunca altera o deck).
+var AG_PT = {
+  shape: { aggro: 'Agressivo', midrange: 'Midrange', control: 'Controlo', combo: 'Combo' },
+  verdict: { FOCUSED: 'Focado', SCATTERED: 'Disperso', 'off-template': 'Fora do modelo habitual', 'on-template': 'Dentro do modelo habitual' },
+  band: { 'Lands': 'Terrenos', 'Interaction (incl. sweepers)': 'Interação (com varrimentos)', 'Card draw': 'Compra de cartas', 'Creatures (type line)': 'Criaturas', 'Ramp': 'Aceleração' },
+  viol: { format_legality: 'Legalidade no formato', commander_zone: 'Comandante', color_identity: 'Identidade de cor', copy_limits: 'Limite de cópias', sideboard_size: 'Tamanho do sideboard', deck_minimum: 'Mínimo de cartas', companion: 'Companheiro', pool_containment: 'Pool' },
+  rar: { common: 'comum', uncommon: 'incomum', rare: 'rara', mythic: 'mítica' }
+};
+var AG_ROLE = { 'card draw': 'compra de cartas', 'interaction': 'interação', 'lands': 'terrenos', 'creatures': 'criaturas', 'ramp': 'aceleração', 'removal': 'remoção', 'board wipes': 'varrimentos', 'wipes': 'varrimentos' };
+function agPt(t) {   // traduz as mensagens mais comuns das ferramentas; devolve null se não souber
+  t = String(t || '');
+  var m = t.match(/^(.+?) \((\d+)\) is an under-supported theme/i);
+  if (m) return 'Tema «' + m[1] + '» com poucas cartas (' + m[2] + '): reforça-o ou corta-o.';
+  m = t.match(/^(.+?) (over|under) by (\d+) \((\d+)\/(\d+)-(\d+)\)/i);
+  if (m) return (AG_ROLE[m[1].toLowerCase()] || m[1]).replace(/^./, function (c) { return c.toUpperCase(); }) + (m[2].toLowerCase() === 'over' ? ' a mais' : ' a menos') + ' em ' + m[3] + ' (tens ' + m[4] + ', ideal ' + m[5] + '–' + m[6] + ').';
+  return null;
+}
+function agentCard(d, box) {
+  var st = { last: null, timer: null, busy: false, bridge: null };
+  var age = function (iso) { var s = (Date.now() - new Date(iso).getTime()) / 1000; return s < 90 ? 'agora mesmo' : s < 3600 ? 'há ' + Math.round(s / 60) + ' min' : s < 86400 ? 'há ' + Math.round(s / 3600) + ' h' : 'há ' + Math.round(s / 86400) + ' dias'; };
+  async function load() {
+    try {
+      var r = await Promise.all([q(sb.from('deck_analyses').select('*').eq('deck_id', d.deck_id).order('created_at', { ascending: false }).limit(1)), q(sb.from('sync_bridge').select('last_seen').maybeSingle())]);
+      st.last = (r[0].data || [])[0] || null; st.bridge = r[1].data; st.err = null;
+    } catch (e) { st.err = S.offline ? 'Sem ligação.' : e.message; }
+    paint(); watch();
+  }
+  function watch() {
+    clearInterval(st.timer);
+    if (!st.last || (st.last.status !== 'pending' && st.last.status !== 'running')) return;
+    st.timer = setInterval(async function () {
+      if (!box.isConnected) { clearInterval(st.timer); return; }
+      try { var r = await q(sb.from('deck_analyses').select('*').eq('id', st.last.id).maybeSingle()); if (r.data) st.last = r.data; } catch (e) { /* tenta no próximo ciclo */ }
+      if (st.last.status !== 'pending' && st.last.status !== 'running') clearInterval(st.timer);
+      paint();
+    }, 2000);
+  }
+  async function start() {
+    if (!needOnline() || st.busy) return;
+    st.busy = true; paint();
+    try { var r = await q(sb.from('deck_analyses').insert({ user_id: S.session.user.id, deck_id: d.deck_id, status: 'pending' }).select('*')); st.last = r.data[0]; watch(); }
+    catch (e) { toast('Não consegui pedir a análise: ' + e.message); }
+    st.busy = false; paint();
+  }
+  async function cancel() {
+    try { await q(sb.from('deck_analyses').update({ status: 'cancelled' }).eq('id', st.last.id)); st.last.status = 'cancelled'; clearInterval(st.timer); } catch (e) { toast('Não consegui cancelar: ' + e.message); }
+    paint();
+  }
+  function bandRow(b) {
+    var ok = b.atual != null && (b.min == null || b.atual >= b.min) && (b.max == null || b.atual <= b.max);
+    return h('div', { class: 'row', style: 'justify-content:space-between;padding:3px 0' }, h('span', { class: 'small', text: AG_PT.band[b.rotulo] || b.rotulo }),
+      h('span', { class: 'small' }, h('b', { class: 'num', text: String(b.atual) }), h('span', { class: 'muted num', text: ' (ideal ' + b.min + '–' + b.max + ') ' }), h('span', { class: 'chip ' + (ok ? 'ok' : 'warn'), text: ok ? 'ok' : (b.atual > b.max ? 'a mais' : 'a menos') })));
+  }
+  function report(a) {
+    var r = a.result, e = r.estatisticas || {}, m = r.mana || {}, cr = r.craft || {}, af = r.afinacao || {}, lg = r.legalidade || {};
+    var stale = d.updated_at && new Date(d.updated_at) > new Date(a.updated_at);
+    var statChip = function (s, t) { return h('span', { class: 'chip ' + (s === 'PASS' ? 'ok' : s === 'WARN' ? 'warn' : 'bad'), text: t + (s === 'PASS' ? ' ✓' : s === 'WARN' ? ' !' : ' ✕') }); };
+    var out = [];
+    out.push(h('div', { class: 'row', style: 'flex-wrap:wrap' }, statChip(lg.estado, 'Legalidade'), statChip(m.estado, 'Mana'),
+      af.forma ? h('span', { class: 'chip acc', text: AG_PT.shape[af.forma] || af.forma }) : null,
+      af.veredito_foco ? h('span', { class: 'chip', text: AG_PT.verdict[af.veredito_foco] || af.veredito_foco }) : null));
+    if (stale) out.push(h('div', { class: 'note warn', text: 'O deck mudou depois desta análise. Analisa de novo para atualizar.' }));
+    (lg.violacoes || []).forEach(function (v) { out.push(h('div', { class: 'note bad', text: (AG_PT.viol[v.tipo] || v.tipo) + ': ' + (v.carta ? v.carta + ' — ' : '') + v.texto })); });
+    out.push(h('div', { class: 'grid4' },
+      [[e.terrenos, 'Terrenos'], [e.criaturas, 'Criaturas'], [e.cmc_medio, 'Custo médio'], [e.game_changers, 'Game Changers']].map(function (x) { return h('div', { class: 'stat' }, h('b', { class: 'num', text: x[0] == null ? '–' : String(x[0]).replace('.', ',') }), h('span', { text: x[1] })); })));
+    if (e.fontes_de_cor && m.demanda_pct) {
+      var cn = { W: 'Branco', U: 'Azul', B: 'Preto', R: 'Vermelho', G: 'Verde' };
+      out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Cores: precisas vs. terrenos'), h('div', { class: 'pips' },
+        Object.keys(m.demanda_pct).map(function (c) { return h('span', { class: 'chip', title: cn[c] }, h('span', { class: 'sym ' + c, 'aria-hidden': 'true', text: c }), m.demanda_pct[c] + '% / ' + ((m.producao_pct || {})[c] || 0) + '%'); }))));
+    }
+    (m.avisos || []).forEach(function (w) { out.push(h('div', { class: 'note warn', text: String(w) })); });
+    if (af.bandas && af.bandas.length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Equilíbrio do deck'), af.bandas.map(bandRow)));
+    if (af.eixos && af.eixos.length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Temas fortes'), h('div', { class: 'pips' }, af.eixos.map(function (x) { return h('span', { class: 'chip hot', text: x.nome + ' · ' + x.cartas + ' cartas' }); }))));
+    // craft
+    var tot = ['mythic', 'rare', 'uncommon', 'common'].reduce(function (s, k) { return s + ((cr.custo || {})[k] || 0); }, 0);
+    out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Para montar este deck'),
+      tot === 0 ? h('p', { class: 'small', text: 'Tens tudo. Não precisas de wildcards.' }) : h('div', null,
+        h('div', { class: 'grid4' }, [['common', 'Comuns'], ['uncommon', 'Incomuns'], ['rare', 'Raras'], ['mythic', 'Míticas']].map(function (r) {
+          return h('div', { class: 'stat' }, h('b', { class: 'num', text: (cr.custo || {})[r[0]] || 0 }), h('span', null, h('i', { class: 'dot ' + r[0] }), ' ' + r[1]));
+        })),
+        h('p', { class: 'small ' + (cr.cabe_na_carteira ? '' : 'muted'), text: cr.cabe_na_carteira ? 'Cabe nas tuas wildcards.' : 'As tuas wildcards não chegam.' }),
+        (cr.cartas || []).length ? h('p', { class: 'small muted', text: 'Faltam: ' + cr.cartas.map(function (c) { return c.faltam + '× ' + c.name; }).join(', ') }) : null)));
+    // pontos e trocas
+    if ((af.pontos || []).length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Pontos a melhorar'),
+      af.pontos.map(function (p) { return h('div', { class: 'note ' + (p.gravidade >= 3 ? 'bad' : 'warn'), style: 'margin-top:6px', text: agPt(p.texto) || p.texto }); }),
+      af.pontos.some(function (p) { return !agPt(p.texto); }) ? h('p', { class: 'muted small', text: 'Alguns comentários vêm em inglês, tal como as ferramentas os escrevem.' }) : null));
+    if ((af.trocas || []).length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Trocas sugeridas (com a tua coleção)'),
+      af.trocas.map(function (t) {
+        return h('div', { class: 'cl', style: 'grid-template-columns:1fr auto' }, h('span', null, h('span', { class: 'muted small', text: 'Sai ' }), h('b', { text: t.sai }), h('span', { class: 'muted small', text: '  →  entra ' }), h('b', { text: t.entra }), h('div', { class: 'muted small', text: agPt(t.motivo) || t.motivo || '' })),
+          h('span', { class: 'chip ' + (t.tenho ? 'ok' : 'warn'), text: t.tenho ? 'tenho' : 'craft ' + (AG_PT.rar[t.raridade] || t.raridade || '') }));
+      })));
+    else if (af.nota) out.push(h('p', { class: 'muted small', text: 'Sem trocas a propor: ' + af.nota }));
+    var cb = r.combos || {};
+    if ((cb.existentes || []).length) out.push(h('div', null, h('div', { class: 'small', style: 'font-weight:600' }, 'Combos no deck'), cb.existentes.map(function (c) { return h('div', { class: 'small', text: (Array.isArray(c.cartas) ? c.cartas.join(' + ') : String(c.cartas || '')) + (c.resultado ? ' → ' + (Array.isArray(c.resultado) ? c.resultado.join(', ') : c.resultado) : '') }); })));
+    else out.push(h('p', { class: 'muted small', text: 'Combos: nenhum encontrado' + (cb.quase ? ' (' + cb.quase + ' a uma carta de distância)' : '') + '.' }));
+    (r.avisos || []).forEach(function (w) { out.push(h('div', { class: 'note warn', text: w })); });
+    return out;
+  }
+  function paint() {
+    var a = st.last, on = st.bridge && (Date.now() - new Date(st.bridge.last_seen).getTime()) < 45000;
+    var act = a && (a.status === 'pending' || a.status === 'running');
+    var parts = [h('h3', { text: 'Agente · análise do deck' })];
+    if (st.err) parts.push(h('div', { class: 'note bad', text: 'Não consegui ler a análise: ' + st.err }));
+    if (act) {
+      var pct = a.status === 'pending' ? 0 : (a.progress || 1);
+      parts.push(h('div', { class: 'sync-prog', role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: 'width:' + pct + '%' })),
+        h('div', { class: 'small' }, h('b', { text: a.status === 'pending' ? 'À espera do PC…' : (a.step || 'A trabalhar…') + ' · ' + pct + ' %' })),
+        a.message ? h('div', { class: 'small muted', text: a.message }) : null,
+        h('button', { class: 'back', type: 'button', text: 'Cancelar', onclick: cancel }));
+    } else {
+      if (a && a.status === 'done' && a.result) parts.push(h('div', { class: 'muted small', text: 'Analisado ' + age(a.updated_at) + ' · só leitura: o agente nunca altera o deck.' }), h('div', { class: 'stack' }, report(a)));
+      else if (a && a.status === 'error') parts.push(h('div', { class: 'note bad', text: 'A última análise falhou: ' + (a.message || 'erro desconhecido') }));
+      else if (!a && !st.err) parts.push(h('p', { class: 'small muted', text: 'O agente corre as ferramentas de análise no teu PC: legalidade, curva, base de mana, o que falta craftar, pontos fracos e trocas dentro das tuas wildcards.' }));
+      parts.push(h('button', { class: 'btn', type: 'button', disabled: st.busy || !!st.err && S.offline, text: st.busy ? 'A pedir…' : a && a.status === 'done' ? 'Analisar de novo' : 'Analisar com o agente', onclick: start }),
+        !on && st.bridge !== undefined ? h('p', { class: 'small muted', text: 'O PC tem de estar ligado com a ponte a correr (a primeira análise demora 1 a 2 minutos).' }) : null);
+    }
+    fill(box, h('div', { class: 'card stack' }, parts));
+  }
+  paint(); load();
 }
 function typeGroup(t) {
   t = t || '';
