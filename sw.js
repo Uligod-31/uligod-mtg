@@ -31,7 +31,7 @@
  * v27: ícone Início em brasão de chamas (ideia do utilizador).
  * v28: ícone Início decalcado da silhueta do símbolo enviado pelo utilizador (preenchido).
  * v29: brasão do Início vetorizado com mais rigor, maior e sem legenda. */
-var CACHE = 'uligod-mtg-shell-v33';
+var CACHE = 'uligod-mtg-shell-v34';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
