@@ -1947,7 +1947,7 @@ function agPlano(r) {   // plano do Uligod'eYes: o que cortar/trocar/entrar e a 
   return h('div', { class: 'note plano' }, h('div', { class: 'small', style: 'font-weight:700', text: '🧪 Plano do Uligod\'eYes · simulado' }),
     h('p', { class: 'muted small', text: 'Aplico os passos pela ordem e volto a medir a mana do deck, com as mesmas contas exatas.' }),
     h('ol', { class: 'small', style: 'margin:6px 0 6px 18px;padding:0' }, pl.passos.map(function (p) { return h('li', { text: p.texto }); })),
-    cortes && (cortes.alternativas || []).length ? h('p', { class: 'muted small', text: 'Se preferires cortar outras: ' + cortes.alternativas.join(', ') + '.' }) : null,
+    (function () { var alt = ((cortes && cortes.alternativas) || []).filter(function (n) { return !pl.passos.some(function (p) { return p.texto.indexOf(n) >= 0 && /^(Cortar|Tirar)/.test(p.texto); }); }); return alt.length ? h('p', { class: 'muted small', text: 'Se preferires cortar outras: ' + alt.join(', ') + '.' }) : null; })(),
     h('div', { style: 'margin-top:6px' },
       h('div', { class: 'row', style: 'justify-content:space-between' }, h('span', { class: 'small', text: 'Main / terrenos' }), h('span', { class: 'chip', text: a.baralho + ' → ' + b.baralho + ' cartas · ' + a.terrenos + ' → ' + b.terrenos + ' terrenos' })),
       pl.lancaveis && pl.lancaveis.antes != null ? lin('Cartas lançáveis a tempo', pl.lancaveis.antes, pl.lancaveis.depois, true, 'Média da probabilidade de teres as cores certas (turno 2, ou 2 fontes no turno 4) para lançar cada carta') : null,
