@@ -30,8 +30,9 @@
  * v26: ícone Decks em perspetiva (caixa fechada, 3 faces) e ícone Coleção com a carta maior, sem riscos laterais.
  * v27: ícone Início em brasão de chamas (ideia do utilizador).
  * v28: ícone Início decalcado da silhueta do símbolo enviado pelo utilizador (preenchido).
- * v29: brasão do Início vetorizado com mais rigor, maior e sem legenda. */
-var CACHE = 'uligod-mtg-shell-v36';
+ * v29: brasão do Início vetorizado com mais rigor, maior e sem legenda.
+ * v44: Uligod'eYes em inglês, cópias sugeridas (1 a 4) e guia estratégico. */
+var CACHE = 'uligod-mtg-shell-v44';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
